@@ -1,0 +1,15 @@
+[Unit]
+Description=PicFrame photo frame
+# Ordered after time sync when it happens; doesn't wait for it (the RTC keeps time offline)
+After=time-sync.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/PicFrame
+Environment=SDL_VIDEODRIVER=kmsdrm
+ExecStart=/usr/bin/python3 -m frame.app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
