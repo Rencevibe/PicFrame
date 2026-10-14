@@ -64,3 +64,16 @@ def test_settings_changes_apply_live():
     nc = NightController(cfg)
     cfg.night_start = time(23, 45)
     assert nc.should_be_dark(NIGHT, "idle") is False
+
+
+def test_wake_lasts_wake_s_of_real_time_across_dst():
+    utc = ZoneInfo("UTC")
+    # fall back: 01:59:30 PDT → 60 s later it is 01:00:30 PST (wall clock went backwards)
+    # spring forward: 01:59:30 PST → 60 s later it is 03:00:30 PDT (wall clock skipped an hour)
+    for start_utc in (datetime(2026, 11, 1, 8, 59, 30, tzinfo=utc), datetime(2026, 3, 8, 9, 59, 30, tzinfo=utc)):
+        nc = NightController(Config(night_start=time(0, 0), night_end=time(6, 0)))
+        start = start_utc.astimezone(LA)
+        assert nc.should_be_dark(start, "idle") is True
+        nc.wake(start)
+        assert nc.should_be_dark((start_utc + timedelta(seconds=59)).astimezone(LA), "idle") is False
+        assert nc.should_be_dark((start_utc + timedelta(seconds=60)).astimezone(LA), "idle") is True

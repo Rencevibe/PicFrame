@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import threading
+import time
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
@@ -101,9 +102,9 @@ def _thread_spawn(fn) -> None:
 
 
 class WeatherService:
-    def __init__(self, cfg: Config, fetch=_urlopen_fetch, spawn=_thread_spawn):
+    def __init__(self, cfg: Config, fetch=_urlopen_fetch, spawn=_thread_spawn, clock=time.monotonic):
         self.cfg = cfg
-        self._fetch, self._spawn = fetch, spawn
+        self._fetch, self._spawn, self._clock = fetch, spawn, clock
         self._last: Weather | None = None
         self._last_attempt: float | None = None
         self._busy = False
@@ -114,9 +115,10 @@ class WeatherService:
         lat, lon = self.cfg.lat, self.cfg.lon
         if lat is None or lon is None or self._busy:
             return
-        if self._last_attempt is not None and now.timestamp() - self._last_attempt < REFRESH_S:
+        # Monotonic, so an NTP or RTC clock change can't stall or bunch refreshes
+        if self._last_attempt is not None and self._clock() - self._last_attempt < REFRESH_S:
             return
-        self._last_attempt, self._busy = now.timestamp(), True
+        self._last_attempt, self._busy = self._clock(), True
         url = build_url(lat, lon, self.cfg.units)
 
         def job():
@@ -127,7 +129,11 @@ class WeatherService:
             finally:
                 self._busy = False
 
-        self._spawn(job)
+        try:
+            self._spawn(job)
+        except Exception as e:  # e.g. can't start a thread: retry at the next interval
+            self._busy = False
+            log.warning("weather: could not start update (%s)", e)
 
     def current(self, now: datetime) -> Weather | None:
         w = self._last
