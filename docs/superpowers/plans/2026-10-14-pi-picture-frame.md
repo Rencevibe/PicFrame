@@ -27,6 +27,7 @@
 3. Phone photos with EXIF rotation, huge files, corrupt files → shown upright, cached small, corrupt skipped. *(Task 6)*
 4. `config.toml` missing or not valid TOML → app starts on defaults with a warning banner. *(Task 1)*
 5. Alarm fires while Settings is open or display is in night black → alarm screen appears, screen wakes. *(Task 9)*
+6. Touch: actions fire on finger-up inside the same button; finger-down shows pressed state; tap on night black shows the dim Night clock, never the full dashboard. *(Tasks 7–9)*
 
 ---
 
@@ -35,7 +36,7 @@
 **Files:** Create `frame/__init__.py`, `frame/config.py`, `config.example.toml`, `tests/test_config.py`, `pyproject.toml` (pytest settings only), `.gitignore`
 
 **Interfaces — Produces:**
-- `@dataclass Config`: `photo_dir: Path`, `interval_s: int=30`, `fade_ms: int=1000`, `lat: float|None`, `lon: float|None`, `units: str="fahrenheit"`, `clock_24h: bool=False`, `week_start: str="sunday"`, `overlay_corner: str="bottom-left"`, `night_start: time|None=time(23,0)`, `night_end: time|None=time(6,0)`, `wake_s: int=60`, `alarm_enabled: bool=True`, `alarm_time: time=time(6,30)`, `alarm_days: set[int]={0,1,2,3,4}` (Mon=0), `snooze_min: int=9`, `cache_mb: int=500`, `todo_path: Path`
+- `@dataclass Config`: `photo_dir: Path`, `interval_s: int=30`, `fade_ms: int=1000`, `lat: float|None`, `lon: float|None`, `units: str="fahrenheit"`, `clock_24h: bool=False`, `week_start: str="sunday"`, `overlay_corner: str="bottom-left"`, `night_enabled: bool=True`, `night_start: time=time(23,0)`, `night_end: time=time(6,0)`, `wake_s: int=60`, `alarm_enabled: bool=True`, `alarm_time: time=time(6,30)`, `alarm_days: set[int]={0,1,2,3,4}` (Mon=0), `snooze_min: int=9`, `cache_mb: int=500`, `todo_path: Path`
 - `load_config(path: Path) -> tuple[Config, list[str], bool]` → config, warnings, `critical` (True if photo_dir, alarm or location invalid)
 - `save_config(cfg: Config, path: Path) -> None` (atomic: write temp, rename)
 
@@ -99,7 +100,7 @@
 **Files:** Create `frame/night.py`, `tests/test_night.py`
 
 **Interfaces — Produces:**
-- `is_night(now: time, start: time|None, end: time|None) -> bool`
+- `is_night(now: time, start: time|None, end: time|None) -> bool` (`NightController` passes `None` when `night_enabled` is False)
 - `class NightController(cfg)`: `should_be_dark(now: datetime, alarm_state: str) -> bool`; `wake(now)` (touch keeps screen on `wake_s` seconds)
 
 - [ ] **Step 1:** Tests:
@@ -141,7 +142,7 @@
 
 **Interfaces — Produces:**
 - `class PhotoLibrary(folder: Path, rng=random.Random)`: `scan() -> int` (count; JPG/PNG always, WebP only if `PIL.features.check("webp")`), `next() -> Path|None` (shuffled, no repeat until all shown, picks up new files on rescan)
-- `class ImageCache(dir: Path, limit_mb: int)`: `get(src: Path, size: tuple[int,int], mode: str) -> Path|None` (`mode` "fill"=crop, "fit"=letterbox); uses `Image.draft` for JPEG, `ImageOps.exif_transpose`; key = hash(path, mtime, size, mode); evicts least-recently-used when over limit; corrupt → None and logged once
+- `class ImageCache(dir: Path, limit_mb: int)`: `get(src: Path, size: tuple[int,int], mode: str) -> Path|None` (`mode` "fill"=crop, landscape centered, portrait anchored on the upper third; "fit"=letterbox onto a blurred (radius 24 on a 1/8 downscale), 40 %-brightness copy of the same photo); uses `Image.draft` for JPEG, `ImageOps.exif_transpose`; key = hash(path, mtime, size, mode); evicts least-recently-used when over limit; corrupt → None and logged once
 
 - [ ] **Step 1:** Tests (generate images with Pillow in `tmp_path`):
   - `test_scan_counts_supported_only` (.txt ignored)
@@ -150,6 +151,8 @@
   - `test_empty_folder_next_is_none`
   - `test_cache_output_size_exact` for fill 664×600 and fit 1280×800
   - `test_exif_rotated_image_upright` (orientation 6 → output is landscape when source stored portrait)
+  - `test_fill_portrait_keeps_top`: portrait source with a marker band in its top third → band visible in fill output
+  - `test_fit_backdrop_not_black`: portrait source fit to 1280×800 → letterbox corner pixel is not (0,0,0)
   - `test_corrupt_file_returns_none`
   - `test_eviction_under_limit`
 - [ ] **Step 2:** Run → FAIL
@@ -163,10 +166,11 @@
 
 **Interfaces — Produces:**
 - `theme`: color constants from spec, `font(name: str, size: int) -> pygame.font.Font` (cached)
-- `widgets`: `Button(rect, label|icon, action: str)`, `Toggle`, `Stepper`; each `draw(surf)`, `hit(pos) -> str|None`
-- `dashboard.render(surf, vm: dict) -> list[Button]` — `vm` keys: `time, ampm, date, today_items, more, month_cells, alarm_text, alarm_on, countdown, weather (Weather|None), photo (Surface|None), photo_dir, banner (str|None)`; returned buttons: `"to_photo"`, `"open_settings"`
+- `widgets`: `Button(rect, label|icon, action: str)`, `Toggle`, `Stepper`, `Segmented`, `DayChip`; each `draw(surf, pressed: bool=False)`, `hit(pos) -> str|None`; hit rect ≥ 64×64 even when the visible shape is smaller
+- `theme.digits(text, font, color) -> Surface`: renders the clock with fixed-width digit cells
+- `dashboard.render(surf, vm: dict) -> list[Button]` — `vm` keys: `time, ampm, date, today_items, more, month_cells, alarm_text, alarm_days, alarm_on, alarm_state, snooze_until, countdown, weather (Weather|None), weather_as_of (str|None), photo (Surface|None), photo_dir, banner (dict|None: text, kind, more)`; returned buttons: `"to_photo"`, `"open_settings"`, plus `"stop_snooze"` when snoozed and `"clear_banner"` when the banner is a missed alarm
 
-- [ ] **Step 1:** Test (run with `SDL_VIDEODRIVER=dummy`): `test_dashboard_renders_all_states` renders normal / weather None / photo None / empty today / banner onto 1280×800 surface, asserts the two buttons exist at spec rects (`to_photo` = (1160,56,64,64)), saves PNGs to `tests/out/`
+- [ ] **Step 1:** Test (run with `SDL_VIDEODRIVER=dummy`): `test_dashboard_renders_all_states` renders normal / weather None / weather stale / photo None / empty today / snoozed / missed-alarm banner onto 1280×800 surface, asserts buttons at spec rects (`to_photo` = (1160,56,64,64), `open_settings` = (56,672,432,72), snoozed: `open_settings` = (56,672,352,72) + `stop_snooze` = (416,672,72,72)), saves PNGs to `tests/out/`
 - [ ] **Step 2:** Run → FAIL
 - [ ] **Step 3:** Implement to the spec layout table
 - [ ] **Step 4:** Run → PASS; open PNGs and compare with the canvas
@@ -174,14 +178,15 @@
 
 ### Task 8: Photo, alarm, settings screens
 
-**Files:** Create `frame/ui/photo_mode.py`, `frame/ui/alarm_screen.py`, `frame/ui/settings_screen.py`; extend `tests/test_ui_render.py`
+**Files:** Create `frame/ui/photo_mode.py`, `frame/ui/alarm_screen.py`, `frame/ui/settings_screen.py`, `frame/ui/night_clock.py`; extend `tests/test_ui_render.py`
 
 **Interfaces — Produces:**
-- `photo_mode.render(surf, vm, controls_visible: bool) -> list[Button]` → `"prev"`, `"next"`, `"to_dashboard"` (only when visible)
-- `alarm_screen.render(surf, vm) -> list[Button]` → `"snooze"`, `"dismiss"` (240×120 each)
-- `settings_screen.render(surf, cfg: Config) -> list[Button]` → `"done"`, `"alarm_toggle"`, `"alarm_minus"`, `"alarm_plus"`, `"day_0"…"day_6"`, `"snooze_minus/plus"`, `"test_alarm"`, `"interval_minus/plus"`, `"fade_toggle"`, `"clock_12"`, `"clock_24"`, `"night_edit"`, `"brightness"` (only if supported)
+- `photo_mode.render(surf, vm, controls_visible: bool, hide_progress: float) -> list[Button]` → `"prev"` (376,688,120,80), `"next"` (512,688,120,80), `"to_dashboard"` (648,688,256,80) only when visible; `"clear_banner"` when a missed-alarm chip shows
+- `alarm_screen.render(surf, vm, pulse: float) -> list[Button]` → `"snooze"` (400,440,480,144), `"dismiss"` (520,640,240,120)
+- `night_clock.render(surf, vm) -> list[Button]` → `"open_settings"` (440,520,400,72)
+- `settings_screen.render(surf, cfg: Config, brightness_supported: bool) -> list[Button]` → `"done"`, `"alarm_toggle"`, `"alarm_hour_minus/plus"`, `"alarm_min_minus/plus"`, `"day_0"…"day_6"`, `"snooze_minus/plus"`, `"test_alarm"`, `"interval_minus/plus"`, `"fade_toggle"`, `"clock_12"`, `"clock_24"`, `"night_toggle"`, `"night_start_minus/plus"`, `"night_end_minus/plus"`, `"brightness_minus/plus"` (only if supported)
 
-- [ ] **Step 1:** Tests: each screen renders without error, expected button ids present, all buttons ≥ 64×64; save PNGs
+- [ ] **Step 1:** Tests: each screen renders without error, expected button ids present at spec rects, all buttons ≥ 64×64, no two buttons overlap; settings without brightness support has no `brightness_*`; save PNGs
 - [ ] **Step 2:** Run → FAIL
 - [ ] **Step 3:** Implement
 - [ ] **Step 4:** Run → PASS; review PNGs
@@ -192,17 +197,19 @@
 **Files:** Create `frame/controller.py`, `frame/app.py`, `tests/test_controller.py`
 
 **Interfaces — Consumes:** Tasks 1–8. **Produces:**
-- `class Controller(cfg, alarm, night, clock)`: `mode` ∈ `"dashboard"|"photo"|"settings"|"alarm"|"dark"`; `on_tap(button_id: str|None, now)`; `on_tick(now)`; `apply_setting(button_id) -> Config` (returns changed config; caller saves)
+- `class Controller(cfg, alarm, night, clock)`: `mode` ∈ `"dashboard"|"photo"|"settings"|"alarm"|"dark"|"night_clock"`; `on_tap(button_id: str|None, now)`; `on_tick(now)`; `apply_setting(button_id) -> Config` (returns changed config; caller saves)
 - `app.main()`: init pygame fullscreen 1280×800, mouse hidden; 10 fps idle loop, 30 fps during fades; pre-loads next photo 5 s before switch; fade via alpha blit, cut if `fade_ms == 0`
 
 - [ ] **Step 1:** Tests:
   - `test_photo_tap_shows_controls_then_hides_after_5s`
   - `test_only_mode_buttons_switch_mode`: tap with `None` on dashboard → stays
   - `test_alarm_preempts_settings_and_dark`: ringing from `"settings"` and `"dark"` → `"alarm"`; after dismiss returns to previous mode (dark if night)
-  - `test_tap_in_dark_wakes`
-  - `test_settings_change_returns_new_config`: `alarm_plus` → alarm_time +5 min
+  - `test_tap_in_dark_shows_night_clock`: tap in `"dark"` → `"night_clock"`, back to `"dark"` after `wake_s`
+  - `test_settings_change_returns_new_config`: `alarm_min_plus` → +5 min; `alarm_hour_plus` at 23:30 → 00:30
+  - `test_stop_snooze_returns_idle`
+  - `test_settings_idle_120s_closes_and_saves`
 - [ ] **Step 2:** Run → FAIL
-- [ ] **Step 3:** Implement controller, then `app.py` wiring (config warnings → banner; weather update thread; photo rescan every 5 min; logging to stdout for journald)
+- [ ] **Step 3:** Implement controller, then `app.py` wiring (touch: pressed state on finger-down, action on finger-up inside the same button; config warnings → banner; config written on Done/idle close only; weather update thread; photo rescan every 5 min; logging to stdout for journald)
 - [ ] **Step 4:** Run tests → PASS; run `python -m frame.app` on a PC window with a sample folder and click through every screen
 - [ ] **Step 5:** Commit `feat: controller and main loop`
 
@@ -213,7 +220,7 @@
 **Interfaces — Produces:**
 - `class DisplayPower(method: str)` ∈ `"black"` (default, draws nothing extra), `"cec"` (`cec-ctl --standby/--image-view-on`), `"dpms"`; `set(on: bool)`; failures logged once, falls back to `"black"`
 - `sound.play_alarm(loop=True)`, `sound.stop()` via `pygame.mixer`; missing audio device → log, visual alarm only
-- Config gains `screen_power: str="black"`, `brightness_cmd: str|None`
+- Config gains `screen_power: str="black"`, `brightness_cmd: str|None`, `brightness: int=100`
 
 - [ ] **Step 1:** Tests: `test_failing_backend_falls_back_to_black` (fake subprocess raising), `test_missing_mixer_does_not_crash`
 - [ ] **Step 2:** Run → FAIL

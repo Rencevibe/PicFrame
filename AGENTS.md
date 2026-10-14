@@ -4,7 +4,7 @@ Build Phase 1 of a Raspberry Pi 3 touchscreen photo frame.
 
 - Spec (what to build): `docs/superpowers/specs/2026-10-14-pi-picture-frame-design.md`
 - Plan (how to build it): `docs/superpowers/plans/2026-10-14-pi-picture-frame.md`
-- Screen designs: `docs/design/*.png` (Dashboard, Photo, Alarm, Settings at 1280×800)
+- Screen designs: `docs/design/*.png` at 1280×800 (Dashboard + snoozed/empty states, Photo, Alarm, Night clock, Settings)
 
 ## How to work
 - Implement the plan one task at a time, in order. Ignore the plan header's mention of "superpowers" sub-skills; just follow the task steps.
