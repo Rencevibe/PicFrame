@@ -5,7 +5,7 @@
 ## Goal
 A Raspberry Pi 3 wooden tabletop frame: photo slideshow + clock/date, calendar, weather and alarm, touch-controlled, runs unattended for weeks.
 
-**Who and where:** a shared household device, read at a glance from 2–3 m (living room) and used half-asleep at arm's length (bedside alarm). It should feel like a picture frame first and a gadget second: calm, dark, no clutter, nothing that needs instructions.
+**Who and where:** a shared household device, glanced at from across a room and used half-asleep at arm's length (bedside alarm). On a 10.1" panel (149 ppi, 1 px ≈ 0.17 mm) that gives two reading distances: the **clock and photos** are for the room (2–3 m); the **date, Today list, calendar and controls** are for arm's length (≈ 0.5–0.7 m). See "Readability and touch check". It should feel like a picture frame first and a gadget second: calm, dark, no clutter, nothing that needs instructions.
 
 ## Hardware
 - Raspberry Pi 3 (record B or B+), 16–32 GB A1 microSD, matching 5V PSU
@@ -32,10 +32,12 @@ Raspberry Pi OS Lite · Python 3 + pygame (SDL KMS/DRM, no desktop) · Open-Mete
 | `accent` | `#A8C686` | Today, On states, primary buttons; text on it is `bg` (9.5:1) |
 | `highlight` | `#E6B86A` | To-do marker, warnings |
 | `alarm` | `#D96B5F` | Alarm label, ring pulse, missed-alarm stripe. **Never** behind `text` (2.96:1 fails); if used as a fill, text on it is `bg` (5.3:1) |
-| `night` | `#6B786E` | Night clock text, on pure black `#000000` |
+| `night` | `#6B786E` | All night clock text including AM/PM, on pure black `#000000` (4.5:1) |
 
 ### Type scale
 Inter for clock, numbers and headings; Atkinson Hyperlegible for UI text. Nothing smaller than 18 px.
+
+**Font status:** the mockups use Inter for all text. Bundling Atkinson Hyperlegible (Regular + Bold, OFL) in `assets/fonts/` is a build-time task (plan Task 7). The visual design counts as final only after Atkinson is confirmed rendering on the Pi itself (plan Task 11), and after every label is re-checked for fit, because Atkinson runs wider than Inter.
 
 | Role | Font | Size |
 |---|---|---|
@@ -55,6 +57,23 @@ Clock digits use **fixed-width cells** (each digit centered in the width of "0")
 - Spacing on an 8 px grid; screen margin 32, gutter 24, panel padding 24
 - Text on photos: `bg` backing at 80% opacity, 20/24 px padding, soft 8 px shadow
 - No gradients or glow except the alarm ring pulse
+
+### Contrast (verified)
+Rule: text ≥ 4.5:1 against its actual background in every state; icons and control outlines ≥ 3:1. Measured with the WCAG 2.1 formula (worst case shown):
+
+| Pair | Ratio |
+|---|---|
+| `text` on `bg` / `panel` / `raised` / `pressed` | 15.7 / 13.4 / 11.4 / 9.2 |
+| `secondary` on `bg` / `panel` / `raised` / `pressed` | 9.8 / 8.3 / 7.1 / 5.7 |
+| `bg` on `accent` / pressed accent `#BCD69E` | 9.5 / 11.3 |
+| `alarm` on `bg` (ALARM caption only) | 5.3 |
+| `night` on black | 4.5 |
+| `text` / `secondary` on a photo chip over a pure-white photo (`bg` 80% → `#404743`) | 8.4 / 5.2 |
+| Icon `secondary` on `raised` (toggle-off knob, disabled stepper) | 7.1 |
+
+Not allowed (measured failures): `alarm` text on `raised` (3.8) or `pressed` (3.1); `text` on `alarm` (3.0); dimmed greys like `#6B766D` on `panel` (3.2). `raised` buttons on `panel` are only 1.2:1, so a button is identified by its icon or label (≥ 7:1), never by its fill alone.
+
+**Disabled state** (stepper at the end of its range, night start/end while night mode is off): the button loses its `raised` fill and its icon turns `secondary`, and values stay `secondary`. That is still 7–8:1, readable but clearly not active. Disabled buttons ignore taps.
 
 ### Icons
 Outlined, 2 px rounded strokes, pre-rendered PNGs in 32 and 48 px.
@@ -100,7 +119,7 @@ Outlined, 2 px rounded strokes, pre-rendered PNGs in 32 and 48 px.
 - **Calendar:** the date line above already names the month, so there is no month title. Today = 32 px `accent` circle with `bg` SemiBold digit. Days outside the month are blank. Week start follows `week_start`.
 - **Alarm row:** a `raised` card, radius 16, which is the `open_settings` button. Contents from left: bell icon 32, time (Inter SemiBold 28), days (e.g. "Mon–Fri", 20 px `secondary`), status dot (12 px: filled `accent` when on, `secondary` outline when off), countdown ("in 17h 49m", 20 px `secondary`, right-aligned), chevron-forward. The chevron tells people the row opens something.
   - Alarm off: "Alarm off" in `secondary`, outline dot, no countdown.
-  - **Snoozed:** the row narrows to `open_settings` (56, 672, 352, 72) and shows "Snoozed · rings 6:39" in `alarm`. A `stop_snooze` button (416, 672, 72, 72, close icon) cancels the snooze. Without it, someone who snoozed and got up has no way to stop the next ring except waiting for it.
+  - **Snoozed:** the row narrows to `open_settings` (56, 672, 336, 72) and shows "Snoozed · rings 6:39" (22 px SemiBold) in `text` with the bell icon in `alarm`. Alarm red is never used for text on `raised`. A `stop_snooze` button (416, 672, 72, 72, close icon) cancels the snooze; the 24 px gap keeps "open Settings" and "cancel snooze" from being hit by the same finger. Without it, someone who snoozed and got up has no way to stop the next ring except waiting for it.
 - **Photo content:** shows the current slideshow photo, cropped to fill. Landscape photos crop around the center; portrait photos keep the **upper third** in view, so faces aren't cut off. Empty folder: photo icon, "No photos yet" (28 px), the folder path (Inter 20 `secondary`, e.g. `/home/pi/frame/photos`) and "Add photos with rsync over SSH" (20 px `secondary`), centered.
 
 **Weather strip** (576×64): icon 48 · temp 32 px · condition label 22 px · "H 72°  L 55°" 22 px `secondary`, right-aligned.
@@ -111,7 +130,8 @@ Outlined, 2 px rounded strokes, pre-rendered PNGs in 32 and 48 px.
 **Banners** (one at a time, highest priority shown, "· 1 more" appended when others wait):
 1. "Missed alarm 6:30 AM": 6 px `alarm` left stripe; the whole banner is `clear_banner`, with a close icon at the right
 2. "Time not set": `highlight` stripe
-3. Config warning, e.g. "config.toml has errors — using defaults": `highlight` stripe
+3. "Settings not saved" (save failed, see Saving and recovery): `highlight` stripe
+4. Config warning, e.g. "config.toml has errors — using defaults": `highlight` stripe
 
 The banner is a `bg` 90% card, radius 16, with 22 px Atkinson text. Only the missed-alarm banner is dismissible; the others clear when their cause is fixed.
 
@@ -130,7 +150,8 @@ The banner is a `bg` 90% card, radius 16, with 22 px Atkinson text. Only the mis
 - "ALARM" (or "TEST ALARM") caption in `alarm`, centered at y 120
 - Time 160 px `text`, centered, y 160–330; date 28 px `secondary` at y 350
 - `snooze`: **primary**, (400, 440, 480, 144), `accent` fill, "Snooze 9 min" in 36 px `bg`. This is the button a half-asleep hand should land on.
-- `dismiss`: secondary, (520, 640, 240, 120), 2 px `text` outline, "Dismiss" 28 px. It sits 56 px below Snooze and is half as wide, so dismissing takes a deliberate tap.
+- `dismiss`: secondary, (520, 640, 240, 120), `raised` fill with a 2 px `text` outline, "Dismiss" in Inter SemiBold 32 `text` (11.4:1). It is half as wide as Snooze and sits 56 px below it, so dismissing takes a deliberate tap, but the solid fill and bold label keep it easy to find. Both labels spell out the action; there are no icon-only alarm buttons.
+- **Touch guard:** the alarm screen ignores any touch whose finger-down happened before the screen appeared, and all touches for its first 1 s. A tap meant to wake the night screen, or to adjust Settings, can't land on Snooze or Dismiss by accident.
 - Test alarm: same screen, caption "TEST ALARM", closes itself after 10 s
 
 ### Night clock (new)
@@ -138,17 +159,22 @@ Shown when someone taps the black night screen, for `wake_s` seconds (default 60
 - Pure black `#000000`, time 160 px Inter Medium in `night` color, centered at y 250–410
 - Below it, the `open_settings` button (440, 520, 400, 72) with no fill: "Alarm 6:30 AM · Mon–Fri" in 24 px `night` + chevron-forward. This is for checking or changing the alarm at bedtime without being lit up by the full dashboard.
 - The alarm itself still uses the normal Alarm screen at night
+- **Wake rules:**
+  - The tap that wakes the black screen is consumed: it only shows the night clock and never activates a button, even when it lands where `open_settings` will appear
+  - While the night clock shows, taps outside `open_settings` only restart the `wake_s` timer, and nothing changes mode
+  - The dimness comes from color (`night` on black), so it works on every screen whether or not backlight control exists
+  - If the alarm fires while the night clock or black screen is showing, the Alarm screen replaces it at once (touch guard above). After Dismiss or the 10-min stop it returns to black if it is still night, otherwise to the mode it interrupted
 
 ### Settings
 Opened from the dashboard alarm row (or the night clock). `bg` background.
 
 - **Header:** "Settings" Inter SemiBold 32 at (32, 44); hint "Saved when you tap Done" 18 px `secondary` below it; `done` (1088, 32, 160, 64), `accent` fill, "Done" 24 px `bg`
-- **Cards:** Alarm (32, 120, 596, 648) and Display (652, 120, 596, 648), `panel` fill, radius 24, padding 24. Card title 28 px at card top + 24. Rows start at card top + 72 and are 76 px tall (64 px control + 6 px above and below), separated by 1 px `divider`. Label is 24 px Atkinson on the left, control right-aligned.
+- **Cards:** Alarm (32, 120, 596, 648) and Display (652, 120, 596, 648), `panel` fill, radius 24, padding 24. Card title 28 px at card top + 24. Rows start at card top + 64 and are 80 px tall (64 px control + 8 px above and below, so stacked controls are 16 px apart), separated by 1 px `divider`. Label is 24 px Atkinson on the left, control right-aligned.
 - **Controls:**
   - Toggle: pill 88×48 (on = `accent` with `bg` knob on the right, off = `raised` with `secondary` knob on the left) in a 104×64 hit area; the knob position carries the state, not only the color
   - Stepper (272 wide): `[−]` 64×64 · value 144 wide, Inter SemiBold 28, centered · `[+]` 64×64, both `raised`; a button greys out (`secondary` icon at 40%) at the end of its range
   - Segmented: two 96×64 segments, the selected one `accent` with `bg` text
-  - Day chips: 64×64 circles with 8 px gaps; selected = `accent` fill + `bg` text, off = 2 px `secondary` outline. Two-letter labels (Mo Tu We Th Fr Sa Su), because single letters (T/T, S/S) are ambiguous. Order follows `week_start`
+  - Day chips: 64×64 circles with 16 px gaps (7 × 64 + 6 × 16 = 544); selected = `accent` fill + `bg` text, off = 2 px `secondary` outline. Two-letter labels (Mo Tu We Th Fr Sa Su), because single letters (T/T, S/S) are ambiguous. Order follows `week_start`
 
 | Alarm card | Control | Button ids |
 |---|---|---|
@@ -170,8 +196,31 @@ Opened from the dashboard alarm row (or the night clock). `bg` background.
 | Brightness (only if supported) | Stepper 10–100 %, ±10 | `brightness_minus`, `brightness_plus` |
 
 - Separate hour and minute steppers replace the single ±5 min stepper: moving 6:30 AM to 6:30 PM took 144 taps, and now takes 12
-- Changes apply live; `config.toml` is written once on Done, to spare the SD card
+- Changes apply live, including alarm time and days, so an alarm always follows what is on screen even before saving. `config.toml` is written once on Done (or idle close), to spare the SD card
 - **Idle close:** after 120 s with no touch, Settings saves and returns to the previous mode, so the frame never sits on Settings all day
+- **Settings never covers or delays an alarm.** Alarm checks run every tick in every mode. When an alarm (or snooze end) fires while Settings is open, the Alarm screen replaces it immediately; unsaved changes stay in memory. The idle timer is paused while the Alarm screen shows. After Dismiss/Snooze the frame returns to Settings with the idle timer restarted at 120 s. Test alarm works the same way.
+
+### Saving and recovery
+- **Atomic save:** write `config.toml.tmp`, flush and fsync, copy the current file to `config.toml.bak`, then rename the temp file over `config.toml`. A crash or power cut at any point leaves either the old or the new file intact, never a half-written one
+- **Save fails** (disk full, read-only SD card, permission): Settings stays open and the header shows an error strip (200, 32, 696, 64) in place of the hint: "Couldn't save settings: <reason>." (20 px `text`) / "Your previous settings are still on disk." (18 px `secondary`), `panel` fill, 6 px `highlight` stripe. Done becomes "Retry" (`done`), and "Keep for now" (`keep_unsaved`, 912, 32, 160, 64, `raised`) closes Settings: the new values stay in effect until restart, and the dashboard shows a "Settings not saved" banner (priority below Time not set). If the idle close hits a failed save, it takes the "Keep for now" path
+- **Startup recovery:** if `config.toml` is missing or invalid but `config.toml.bak` is valid, the frame loads the backup and shows the config-warning banner "config.toml was invalid — using last saved settings". Only if both fail does it fall back to defaults
+- Settings never writes an unvalidated value: every value comes from a stepper range or toggle, and the saved file is reloaded and compared once after writing
+
+### Readability and touch check
+Panel: 10.1" at 1280×800 = 149 ppi, so 1 px ≈ 0.17 mm. Reading distance is estimated from x-height (cap height for numerals): comfortable at ≥ 0.3° of visual angle, minimum 0.2°.
+
+| Element | Size on glass | Comfortable / minimum distance |
+|---|---|---|
+| Alarm and night clock (160 px) | 19.8 mm | 3.8 / 5.7 m |
+| Dashboard clock (96 px) | 11.9 mm | 2.3 / 3.4 m |
+| Photo-mode clock chip (64 px) | 7.9 mm | 1.5 / 2.3 m |
+| Weather temp (32 px) | 4.0 mm | 0.8 / 1.1 m |
+| Date (28), Today items (24), calendar (20) | 2.2–2.7 mm | 0.4–0.5 / 0.6–0.8 m |
+| Captions, weekday initials (18) | 1.7 mm | 0.3 / 0.5 m |
+
+- Readable across a room: the clock, on every screen. The date, list and calendar are for arm's length; making them readable from a sofa would need a different dashboard (for example, no calendar and a larger list), which is a product decision, not a tweak
+- Touch: the smallest target is 64 px = 10.9 mm square, above the common 9–10 mm fingertip guideline. Snooze is 82 × 25 mm and Dismiss 41 × 20 mm. Adjacent targets are ≥ 16 px (2.7 mm) apart, and Snooze/Dismiss 56 px (9.5 mm). Actions fire on release inside the same button, which absorbs near-misses
+- The mockups were checked at 1:1 (no scaling) on a monitor. Distances and targets still need confirming on the real panel (plan Task 11)
 
 ## Behavior
 - **Slideshow:** shuffle, 30 s default, fade `fade_ms` default 1000, 0 = cut (use if it stutters); JPG/PNG guaranteed, WebP only if pygame's image library reports support; unreadable files skipped; empty folder shows "No photos yet" with the folder path (default `/home/pi/frame/photos`); folder rescanned every 5 min. The dashboard photo and Photo mode share one sequence.
@@ -234,6 +283,17 @@ Confirm exact Pi 3 model and touchscreen model (touch interface, display control
 | 16 | Weather staleness was invisible until it vanished | "as of HH:MM" after 1 h |
 | 17 | Today rows spent width on the type word ("Appointment"), truncating titles | Marker shape carries the type; title gets the width |
 
-**Mockups:** `docs/design/` (dashboard, dashboard-snoozed, dashboard-empty, photo, alarm, night-clock, settings). They use Inter for all text because Atkinson Hyperlegible wasn't available to the renderer; the build uses Atkinson for UI text as specified.
+**Review follow-up (Rev 2.1):**
+
+| # | Check | Result / change |
+|---|---|---|
+| 18 | Contrast of final colors, including pressed and disabled | 3 failures found and fixed: snoozed text in `alarm` on `raised` (3.8:1) → `text`; night AM/PM `#4E5951` (2.9:1) → `night`; disabled grey (2.2–3.2:1) → no fill + `secondary`. Table under Visual system |
+| 19 | Mockups at 1:1, targets and readability | Snooze-stop gap 8 → 24 px; Settings rows 76 → 80 px; day-chip gap 8 → 16 px; Dismiss gets a solid fill and a bold 32 px label. The date, list and calendar are arm's-length text (≤ 0.7 m), not ≤ 1 m as Rev 2 said |
+| 20 | Save failure and recovery | Atomic save + `.bak`, error strip with Retry / Keep for now, backup used at startup |
+| 21 | Alarm vs Settings idle timeout | Alarm preempts on the same tick, idle timer paused, live (unsaved) alarm settings used |
+| 22 | Night clock wake | Wake tap consumed; alarm touch guard (finger-down before screen or < 1 s ignored) |
+| 23 | Atkinson Hyperlegible | Build-time task (plan Task 7 Step 0) + on-Pi visual sign-off (Task 11 Step 4b) |
+
+**Mockups:** `docs/design/` (dashboard, dashboard-snoozed, dashboard-empty, photo, alarm, night-clock, settings, settings-save-error). They use Inter for all text because Atkinson Hyperlegible wasn't available to the renderer; the build uses Atkinson for UI text as specified.
 
 **Considered, deferred** (not Phase 1): pause button in Photo mode; day/night variants of the clear icon; ±2 px hourly layout shift against IPS image retention; hold-to-repeat on steppers.

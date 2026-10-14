@@ -38,7 +38,8 @@
 **Interfaces — Produces:**
 - `@dataclass Config`: `photo_dir: Path`, `interval_s: int=30`, `fade_ms: int=1000`, `lat: float|None`, `lon: float|None`, `units: str="fahrenheit"`, `clock_24h: bool=False`, `week_start: str="sunday"`, `overlay_corner: str="bottom-left"`, `night_enabled: bool=True`, `night_start: time=time(23,0)`, `night_end: time=time(6,0)`, `wake_s: int=60`, `alarm_enabled: bool=True`, `alarm_time: time=time(6,30)`, `alarm_days: set[int]={0,1,2,3,4}` (Mon=0), `snooze_min: int=9`, `cache_mb: int=500`, `todo_path: Path`
 - `load_config(path: Path) -> tuple[Config, list[str], bool]` → config, warnings, `critical` (True if photo_dir, alarm or location invalid)
-- `save_config(cfg: Config, path: Path) -> None` (atomic: write temp, rename)
+- `save_config(cfg: Config, path: Path) -> str|None` → `None` on success, else a short reason. Atomic: write `config.toml.tmp`, fsync, copy current file to `config.toml.bak`, rename temp over `config.toml`, reload and compare. On any failure the previous `config.toml` is untouched
+- `load_config` falls back to `config.toml.bak` (with a warning) when `config.toml` is missing or invalid; defaults only if both fail
 
 - [ ] **Step 1:** `git init`; write tests:
   - `test_missing_file_gives_defaults_and_warning`: warnings non-empty, `critical is False` unless photo dir absent
@@ -46,6 +47,8 @@
   - `test_rejected_value_logged_with_fallback`: `interval_s = -5` → `cfg.interval_s == 30`, warning mentions `interval_s` and `30`
   - `test_bad_alarm_time_is_critical`: `alarm_time = "25:99"` → `critical is True`
   - `test_save_roundtrip`: save then load → equal Config, no warnings
+  - `test_save_failure_keeps_previous_file`: monkeypatch `os.replace` to raise → returns a reason, `config.toml` bytes unchanged, no `.tmp` left
+  - `test_invalid_main_uses_backup`: valid `.bak` + broken `config.toml` → backup values, warning mentions "last saved"
 - [ ] **Step 2:** `pytest tests/test_config.py -v` → FAIL (import error)
 - [ ] **Step 3:** Implement with `tomllib` read, `tomli_w` write; validate field by field, collecting warnings
 - [ ] **Step 4:** `pytest tests/test_config.py -v` → PASS
@@ -168,9 +171,11 @@
 - `theme`: color constants from spec, `font(name: str, size: int) -> pygame.font.Font` (cached)
 - `widgets`: `Button(rect, label|icon, action: str)`, `Toggle`, `Stepper`, `Segmented`, `DayChip`; each `draw(surf, pressed: bool=False)`, `hit(pos) -> str|None`; hit rect ≥ 64×64 even when the visible shape is smaller
 - `theme.digits(text, font, color) -> Surface`: renders the clock with fixed-width digit cells
+- `theme.contrast(fg, bg) -> float` (WCAG 2.1) and `theme.TEXT_PAIRS` / `theme.ICON_PAIRS`: every foreground/background pair the screens use, including pressed and disabled
 - `dashboard.render(surf, vm: dict) -> list[Button]` — `vm` keys: `time, ampm, date, today_items, more, month_cells, alarm_text, alarm_days, alarm_on, alarm_state, snooze_until, countdown, weather (Weather|None), weather_as_of (str|None), photo (Surface|None), photo_dir, banner (dict|None: text, kind, more)`; returned buttons: `"to_photo"`, `"open_settings"`, plus `"stop_snooze"` when snoozed and `"clear_banner"` when the banner is a missed alarm
 
-- [ ] **Step 1:** Test (run with `SDL_VIDEODRIVER=dummy`): `test_dashboard_renders_all_states` renders normal / weather None / weather stale / photo None / empty today / snoozed / missed-alarm banner onto 1280×800 surface, asserts buttons at spec rects (`to_photo` = (1160,56,64,64), `open_settings` = (56,672,432,72), snoozed: `open_settings` = (56,672,352,72) + `stop_snooze` = (416,672,72,72)), saves PNGs to `tests/out/`
+- [ ] **Step 0:** Bundle `assets/fonts/AtkinsonHyperlegible-Regular.ttf`, `-Bold.ttf` and Inter (OFL licence files alongside). Tests: `test_bundled_fonts_load` (each file exists and `theme.font` loads it, never pygame's default font); `test_theme_contrast` (every `TEXT_PAIRS` ≥ 4.5, every `ICON_PAIRS` ≥ 3.0)
+- [ ] **Step 1:** Test (run with `SDL_VIDEODRIVER=dummy`): `test_dashboard_renders_all_states` renders normal / weather None / weather stale / photo None / empty today / snoozed / missed-alarm banner onto 1280×800 surface, asserts buttons at spec rects (`to_photo` = (1160,56,64,64), `open_settings` = (56,672,432,72), snoozed: `open_settings` = (56,672,336,72) + `stop_snooze` = (416,672,72,72)), saves PNGs to `tests/out/`
 - [ ] **Step 2:** Run → FAIL
 - [ ] **Step 3:** Implement to the spec layout table
 - [ ] **Step 4:** Run → PASS; open PNGs and compare with the canvas
@@ -184,9 +189,9 @@
 - `photo_mode.render(surf, vm, controls_visible: bool, hide_progress: float) -> list[Button]` → `"prev"` (376,688,120,80), `"next"` (512,688,120,80), `"to_dashboard"` (648,688,256,80) only when visible; `"clear_banner"` when a missed-alarm chip shows
 - `alarm_screen.render(surf, vm, pulse: float) -> list[Button]` → `"snooze"` (400,440,480,144), `"dismiss"` (520,640,240,120)
 - `night_clock.render(surf, vm) -> list[Button]` → `"open_settings"` (440,520,400,72)
-- `settings_screen.render(surf, cfg: Config, brightness_supported: bool) -> list[Button]` → `"done"`, `"alarm_toggle"`, `"alarm_hour_minus/plus"`, `"alarm_min_minus/plus"`, `"day_0"…"day_6"`, `"snooze_minus/plus"`, `"test_alarm"`, `"interval_minus/plus"`, `"fade_toggle"`, `"clock_12"`, `"clock_24"`, `"night_toggle"`, `"night_start_minus/plus"`, `"night_end_minus/plus"`, `"brightness_minus/plus"` (only if supported)
+- `settings_screen.render(surf, cfg: Config, brightness_supported: bool, save_error: str|None=None) -> list[Button]` → `"done"` (labelled "Retry" when `save_error`), `"keep_unsaved"` (only when `save_error`), `"alarm_toggle"`, `"alarm_hour_minus/plus"`, `"alarm_min_minus/plus"`, `"day_0"…"day_6"`, `"snooze_minus/plus"`, `"test_alarm"`, `"interval_minus/plus"`, `"fade_toggle"`, `"clock_12"`, `"clock_24"`, `"night_toggle"`, `"night_start_minus/plus"`, `"night_end_minus/plus"`, `"brightness_minus/plus"` (only if supported)
 
-- [ ] **Step 1:** Tests: each screen renders without error, expected button ids present at spec rects, all buttons ≥ 64×64, no two buttons overlap; settings without brightness support has no `brightness_*`; save PNGs
+- [ ] **Step 1:** Tests: each screen renders without error, expected button ids present at spec rects, all buttons ≥ 64×64, no two buttons overlap and adjacent ones are ≥ 16 px apart; settings without brightness support has no `brightness_*`; settings with `save_error` shows `keep_unsaved`; `test_labels_fit_their_boxes` (every label rendered in its real font, Atkinson included, fits its box without clipping); save PNGs
 - [ ] **Step 2:** Run → FAIL
 - [ ] **Step 3:** Implement
 - [ ] **Step 4:** Run → PASS; review PNGs
@@ -203,7 +208,12 @@
 - [ ] **Step 1:** Tests:
   - `test_photo_tap_shows_controls_then_hides_after_5s`
   - `test_only_mode_buttons_switch_mode`: tap with `None` on dashboard → stays
-  - `test_alarm_preempts_settings_and_dark`: ringing from `"settings"` and `"dark"` → `"alarm"`; after dismiss returns to previous mode (dark if night)
+  - `test_alarm_preempts_settings_and_dark`: ringing from `"settings"`, `"dark"` and `"night_clock"` → `"alarm"` on the same tick; after dismiss returns to previous mode (dark if night)
+  - `test_settings_idle_paused_during_alarm`: Settings open 110 s, alarm rings 5 min, dismiss → back in Settings with 120 s left; unsaved changes kept
+  - `test_alarm_uses_live_unsaved_settings`: change alarm time in Settings without Done → alarm fires at the new time
+  - `test_alarm_ignores_early_touch`: touch whose finger-down came before the alarm screen, or within its first 1 s → no snooze/dismiss
+  - `test_wake_tap_is_consumed`: tap in `"dark"` at the `open_settings` rect → `"night_clock"`, not Settings; a second tap there opens Settings; taps elsewhere only extend `wake_s`
+  - `test_save_failure_keeps_settings_open`: fake `save_config` returning a reason → mode stays `"settings"`, `save_error` set; `keep_unsaved` → previous mode with "Settings not saved" banner; idle close on failure takes the same path
   - `test_tap_in_dark_shows_night_clock`: tap in `"dark"` → `"night_clock"`, back to `"dark"` after `wake_s`
   - `test_settings_change_returns_new_config`: `alarm_min_plus` → +5 min; `alarm_hour_plus` at 23:30 → 00:30
   - `test_stop_snooze_returns_idle`
@@ -236,6 +246,7 @@
 - [ ] **Step 2:** `frame.service`: `User=pi`, `Environment=SDL_VIDEODRIVER=kmsdrm`, `ExecStart=/usr/bin/python3 -m frame.app`, `Restart=always`, `RestartSec=3`, `After=time-sync.target`
 - [ ] **Step 3:** On the Pi: run setup, reboot. Verify: `hwclock -r` shows correct time; `systemctl status frame` active; frame visible within 45 s (measure with `systemd-analyze` + stopwatch)
 - [ ] **Step 4:** Verify touch on all screens, alarm sound via Test alarm, each `screen_power` method on this screen; set the one that works
+- [ ] **Step 4b (visual sign-off):** photograph every screen on the Pi and compare with `docs/design/`: Atkinson Hyperlegible is what renders (not a fallback), no clipped labels; read the clock at 2.5 m and the Today list at 0.6 m; hit every button with a fingertip, including the day chips and Snooze/Dismiss half-asleep style (eyes half closed, no aiming); check night clock dimness in a dark room. Visual design is final only after this step
 - [ ] **Step 5:** Commit `chore: Pi deployment`
 
 ### Task 12: 48 h soak test
