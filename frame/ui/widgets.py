@@ -127,6 +127,8 @@ class Segmented:
         self.parts = [pygame.Rect(self.rect.left + i * w, self.rect.top, w, self.rect.height)
                       for i in range(len(options))]
         self.hit_rect = self.rect
+        # One hit target per segment, for screens that return a flat list of buttons
+        self.buttons = [Button(part, action=action, style="plain") for part, (_, action) in zip(self.parts, options)]
 
     def hit(self, pos) -> str | None:
         for part, (_, action) in zip(self.parts, self.options):

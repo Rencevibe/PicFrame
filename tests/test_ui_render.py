@@ -190,3 +190,173 @@ def test_static_layers_cached_between_frames(monkeypatch):
     after_new = len(made)
     render(surf, vm)
     assert after_new > first and len(made) == after_new
+
+
+# --- Task 8: photo, alarm, night clock, settings ---
+
+from dataclasses import replace
+from datetime import time as dtime
+from itertools import combinations
+
+from frame.config import Config
+from frame.ui import alarm_screen, night_clock, photo_mode, settings_screen
+
+
+def gap(a, b):
+    """Distance between two rects (0 if they touch or overlap)."""
+    dx = max(b.left - a.right, a.left - b.right, 0)
+    dy = max(b.top - a.bottom, a.top - b.bottom, 0)
+    return max(dx, dy)
+
+
+JOINED = {frozenset({"clock_12", "clock_24"})}  # spec: segmented control = two touching segments
+
+
+def check_buttons(buttons, min_gap=16):
+    for b in buttons:
+        assert b.hit_rect.width >= 64 and b.hit_rect.height >= 64, b.action
+    for a, b in combinations(buttons, 2):
+        if frozenset({a.action, b.action}) in JOINED:
+            assert not a.hit_rect.colliderect(b.hit_rect)
+            continue
+        assert not a.hit_rect.colliderect(b.hit_rect), (a.action, b.action)
+        assert gap(a.hit_rect, b.hit_rect) >= min_gap, (a.action, b.action, gap(a.hit_rect, b.hit_rect))
+
+
+def label_fits(b):
+    if not b.label:
+        return True
+    w = theme.font(*b.font).size(b.label)[0] + (44 if b.icon else 0)
+    return w <= b.rect.width - 16
+
+
+def photo_vm(**over):
+    full = pygame.Surface((1280, 800))
+    full.fill((180, 140, 120))
+    vm = dict(photo=full, time="12:41", ampm="PM", date="Wed, October 14",
+              weather=Weather(64, 2, "partly-cloudy", "Partly cloudy", 72, 55, datetime(2026, 10, 14, 12, 30)),
+              overlay_corner="bottom-left", missed=None, photo_dir="/home/pi/frame/photos", pressed=None)
+    vm.update(over)
+    return vm
+
+
+@pytest.mark.parametrize("corner", ["bottom-left", "bottom-right", "top-left", "top-right"])
+def test_photo_mode_controls_and_chips(corner):
+    surf = pygame.Surface((1280, 800))
+    vm = photo_vm(overlay_corner=corner, missed="Missed alarm 6:30 AM")
+    b = photo_mode.render(surf, vm, controls_visible=True, hide_progress=0.4)
+    r = rects(b)
+    assert r["prev"] == (376, 688, 120, 80) and r["next"] == (512, 688, 120, 80)
+    assert r["to_dashboard"] == (648, 688, 256, 80) and "clear_banner" in r
+    check_buttons(b)
+    chips = photo_mode.chip_rects(vm)
+    bar = pygame.Rect(photo_mode.BAR)
+    for name, c in chips.items():
+        assert pygame.Rect(0, 0, 1280, 800).contains(c), name
+        assert not c.colliderect(bar), name  # the bar never covers a corner chip
+        assert c.width <= (320 if name == "clock" else 400), name
+    for (n1, c1), (n2, c2) in combinations(chips.items(), 2):
+        assert not c1.colliderect(c2), (n1, n2)
+    assert all(label_fits(x) for x in b)
+    pygame.image.save(surf, str(OUT / f"photo-{corner}.png"))
+
+
+def test_photo_mode_hidden_controls_and_empty_states():
+    surf = pygame.Surface((1280, 800))
+    assert photo_mode.render(surf, photo_vm(), controls_visible=False, hide_progress=0) == []
+    assert "weather" not in photo_mode.chip_rects(photo_vm(weather=None))
+    b = photo_mode.render(surf, photo_vm(photo=None, weather=None), controls_visible=False, hide_progress=0)
+    assert b == []
+    pygame.image.save(surf, str(OUT / "photo-empty.png"))
+    photo_mode.render(surf, photo_vm(pressed="next"), controls_visible=True, hide_progress=0.9)
+    pygame.image.save(surf, str(OUT / "photo-controls-pressed.png"))
+
+
+def alarm_vm(**over):
+    vm = dict(time="6:30", ampm="AM", date="Thursday, October 15", snooze_min=9, is_test=False, pressed=None)
+    vm.update(over)
+    return vm
+
+
+@pytest.mark.parametrize("state", ["ring", "test", "pressed-24h"])
+def test_alarm_screen(state):
+    surf = pygame.Surface((1280, 800))
+    vm = {"ring": alarm_vm(), "test": alarm_vm(is_test=True),
+          "pressed-24h": alarm_vm(time="06:30", ampm=None, pressed="snooze", snooze_min=30)}[state]
+    b = alarm_screen.render(surf, vm, pulse=0.5)
+    assert rects(b) == {"snooze": (400, 440, 480, 144), "dismiss": (520, 640, 240, 120)}
+    assert [x.label for x in b] == [f"Snooze {vm['snooze_min']} min", "Dismiss"]
+    check_buttons(b, min_gap=56)
+    assert all(label_fits(x) for x in b)
+    assert surf.get_at((640, 2))[:3] != theme.BG  # pulsing ring at the edge
+    pygame.image.save(surf, str(OUT / f"alarm-{state}.png"))
+
+
+def test_night_clock():
+    surf = pygame.Surface((1280, 800))
+    vm = dict(time="2:14", ampm="AM", alarm_label="Alarm 6:30 AM · Mon–Fri", pressed=None)
+    b = night_clock.render(surf, vm)
+    assert rects(b) == {"open_settings": (440, 520, 400, 72)}
+    assert surf.get_at((5, 5))[:3] == (0, 0, 0)
+    lit = {surf.get_at((x, y))[:3] for x in range(0, 1280, 8) for y in range(0, 800, 8)} - {(0, 0, 0)}
+    assert max(max(c) for c in lit) <= max(theme.NIGHT)  # nothing brighter than the night color
+    pygame.image.save(surf, str(OUT / "night-clock.png"))
+
+
+SETTINGS_IDS = {"done", "alarm_toggle", "alarm_hour_minus", "alarm_hour_plus", "alarm_min_minus", "alarm_min_plus",
+                *(f"day_{i}" for i in range(7)), "snooze_minus", "snooze_plus", "test_alarm",
+                "interval_minus", "interval_plus", "fade_toggle", "clock_12", "clock_24", "night_toggle",
+                "night_start_minus", "night_start_plus", "night_end_minus", "night_end_plus"}
+
+
+def settings_cfg(**over):
+    return replace(Config(), **over)
+
+
+@pytest.mark.parametrize("state", ["default", "brightness", "save-error", "night-off-24h-limits"])
+def test_settings_screen(state):
+    surf = pygame.Surface((1280, 800))
+    cfg = settings_cfg(night_enabled=False, clock_24h=True, snooze_min=1, interval_s=1800, week_start="monday") \
+        if state == "night-off-24h-limits" else settings_cfg()
+    b = settings_screen.render(surf, cfg, brightness_supported=(state == "brightness"),
+                               save_error="Read-only file system" if state == "save-error" else None)
+    ids = {x.action for x in b}
+    expected = set(SETTINGS_IDS)
+    if state == "brightness":
+        expected |= {"brightness_minus", "brightness_plus"}
+    if state == "save-error":
+        expected |= {"keep_unsaved"}
+    assert ids == expected
+    r = rects(b)
+    assert r["done"] == (1088, 32, 160, 64)
+    if state == "save-error":
+        assert r["keep_unsaved"] == (912, 32, 160, 64)
+        assert next(x for x in b if x.action == "done").label == "Retry"
+    check_buttons(b)
+    assert all(label_fits(x) for x in b if isinstance(x, Button))
+    if state == "night-off-24h-limits":
+        disabled = {x.action for x in b if not getattr(x, "enabled", True)}
+        assert {"night_start_minus", "night_start_plus", "night_end_minus", "night_end_plus",
+                "snooze_minus", "interval_plus"} <= disabled
+        assert "snooze_plus" not in disabled and "interval_minus" not in disabled
+        assert next(x for x in b if x.action == "snooze_minus").hit((0, 0)) is None
+    pygame.image.save(surf, str(OUT / f"settings-{state}.png"))
+
+
+def test_labels_fit_their_boxes():
+    """Every settings label and the widest possible value render inside their boxes in the real fonts."""
+    label_font = theme.font("ui", 24)
+    for card in (settings_screen.ALARM_ROWS, settings_screen.DISPLAY_ROWS):
+        for label, control_w in card:
+            room = settings_screen.CARD_W - 48 - control_w - 16
+            assert label_font.size(label)[0] <= room, label
+    value_font = theme.font("inter-semibold", 28)
+    worst = [settings_screen.fmt_hour(h, c) for h in range(24) for c in (False, True)]
+    worst += [settings_screen.fmt_clock(dtime(h, m), c) for h in range(24) for m in (0, 30) for c in (False, True)]
+    worst += [settings_screen.fmt_interval(s) for s in settings_screen.INTERVAL_STEPS]
+    worst += [f"{n} min" for n in range(1, 31)] + [f"{n} %" for n in range(10, 101, 10)] + [":55"]
+    for v in worst:
+        assert value_font.size(v)[0] <= 144 - 8, v
+    day_font = theme.font("ui-bold", 20)
+    for d in settings_screen.DAY_LABELS:
+        assert day_font.size(d)[0] <= 64 - 16, d

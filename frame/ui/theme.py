@@ -27,6 +27,7 @@ ACCENT_PRESSED = rgb("#61E5D2")
 HIGHLIGHT = rgb("#F2B66D")
 ALARM = rgb("#FF766F")
 NIGHT = rgb("#929DAA")
+NIGHT_PRESSED = (26, 30, 36)  # pressed feedback on the night clock that stays dark
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
@@ -46,7 +47,7 @@ TEXT_PAIRS = [
     (SECONDARY, BG, "secondary on bg"), (SECONDARY, PANEL, "secondary on panel"),
     (SECONDARY, RAISED, "secondary on raised / disabled"), (SECONDARY, PRESSED, "secondary on pressed"),
     (BG, ACCENT, "bg on accent"), (BG, ACCENT_PRESSED, "bg on pressed accent"),
-    (ALARM, BG, "ALARM caption"), (NIGHT, BLACK, "night clock"),
+    (ALARM, BG, "ALARM caption"), (NIGHT, BLACK, "night clock"), (NIGHT, NIGHT_PRESSED, "night clock pressed"),
     (TEXT, CHIP_ON_WHITE, "text on photo chip"), (SECONDARY, CHIP_ON_WHITE, "secondary on photo chip"),
     (TEXT, BANNER_ON_WHITE, "banner text over photo"),
     (TEXT, BANNER_PRESSED_ON_WHITE, "pressed banner text over photo"),
