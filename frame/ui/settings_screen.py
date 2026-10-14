@@ -1,11 +1,10 @@
 """Settings screen (spec "Settings", "Saving and recovery"). Draws cfg; the controller applies taps."""
 from __future__ import annotations
 
-from datetime import time
-
 import pygame
 
 from frame.config import Config
+from frame.controller import BRIGHTNESS_RANGE, INTERVAL_STEPS, SNOOZE_RANGE, fmt_clock, fmt_hour
 from frame.ui import theme
 from frame.ui.widgets import Button, DayChip, Segmented, Stepper, Toggle
 
@@ -15,9 +14,6 @@ ROW_Y = CARD_Y + 64  # first row
 ROW_H, REPEAT_H = 80, 128
 STEPPER_W, TOGGLE_W, SEGMENT_W, TEST_W, DAYS_W = 272, 104, 192, 200, 544
 
-INTERVAL_STEPS = [10, 15, 30, 60, 120, 300, 600, 1800]
-SNOOZE_RANGE = (1, 30)
-BRIGHTNESS_RANGE = (10, 100)
 DAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]  # index = weekday, Mon=0
 
 # (label, control width) per row, top to bottom; Repeat's chips sit below its label
@@ -26,16 +22,6 @@ ALARM_ROWS = [("Alarm", TOGGLE_W), ("Hour", STEPPER_W), ("Minute", STEPPER_W), (
 DISPLAY_ROWS = [("Photo interval", STEPPER_W), ("Fade", TOGGLE_W), ("Clock", SEGMENT_W),
                 ("Night mode", TOGGLE_W), ("Night starts", STEPPER_W), ("Night ends", STEPPER_W),
                 ("Brightness", STEPPER_W)]
-
-
-def fmt_hour(h: int, clock_24h: bool) -> str:
-    return f"{h:02d}" if clock_24h else f"{h % 12 or 12} {'AM' if h < 12 else 'PM'}"
-
-
-def fmt_clock(t: time, clock_24h: bool) -> str:
-    if clock_24h:
-        return f"{t.hour:02d}:{t.minute:02d}"
-    return f"{t.hour % 12 or 12}:{t.minute:02d} {'AM' if t.hour < 12 else 'PM'}"
 
 
 def fmt_interval(s: int) -> str:

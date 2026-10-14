@@ -175,33 +175,21 @@ def _weather(surf, vm):
     theme.text(surf, theme.fit(label, f, hl.left - 16 - (t.right + 14)), f, theme.TEXT, (t.right + 14, cy), "lm")
 
 
-_rounded_last: tuple[pygame.Surface, pygame.Surface] | None = None  # (photo, rounded copy)
-
-
-def _rounded_cached(img: pygame.Surface, radius: int) -> pygame.Surface:
-    """Rounding allocates a full-size copy and mask: do it once per photo, not every frame."""
-    global _rounded_last
-    if _rounded_last is None or _rounded_last[0] is not img:
-        _rounded_last = (img, _rounded(img, radius))
-    return _rounded_last[1]
-
-
-def _rounded(img: pygame.Surface, radius: int) -> pygame.Surface:
-    out = img.convert_alpha() if pygame.display.get_init() and pygame.display.get_surface() else img.copy()
-    if out.get_flags() & pygame.SRCALPHA == 0:
-        tmp = pygame.Surface(out.get_size(), pygame.SRCALPHA)
-        tmp.blit(out, (0, 0))
-        out = tmp
-    mask = pygame.Surface(out.get_size(), pygame.SRCALPHA)
-    pygame.draw.rect(mask, (255, 255, 255, 255), mask.get_rect(), border_radius=radius)
-    out.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-    return out
+@lru_cache(maxsize=1)
+def _corner_mask() -> pygame.Surface:
+    """Panel-colored corners laid over the photo: rounds any photo (even a fade blend that
+    changes every frame) without copying it."""
+    mask = pygame.Surface(PHOTO.size, pygame.SRCALPHA)
+    mask.fill((*theme.PANEL, 255))
+    pygame.draw.rect(mask, (0, 0, 0, 0), mask.get_rect(), border_radius=16)
+    return mask
 
 
 def _photo(surf, vm):
     photo = vm.get("photo")
     if photo is not None:
-        surf.blit(_rounded_cached(photo, 16), PHOTO.topleft)
+        surf.blit(photo, PHOTO.topleft)
+        surf.blit(_corner_mask(), PHOTO.topleft)
         return
     pygame.draw.rect(surf, theme.BG, PHOTO, border_radius=16)
     cx = PHOTO.centerx

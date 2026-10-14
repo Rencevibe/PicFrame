@@ -185,11 +185,10 @@ def test_static_layers_cached_between_frames(monkeypatch):
     for _ in range(5):  # same photo and banner on later frames: no new layers
         render(surf, vm)
     assert len(made) == first
-    vm["photo"] = next_photo  # a new photo is rounded once, then reused
+    vm["photo"] = next_photo  # a new photo (or a fade frame) needs no new layer either
     render(surf, vm)
-    after_new = len(made)
     render(surf, vm)
-    assert after_new > first and len(made) == after_new
+    assert len(made) == first
 
 
 # --- Task 8: photo, alarm, night clock, settings ---
