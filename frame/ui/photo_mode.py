@@ -31,7 +31,7 @@ def _place(corner: str, w: int, h: int) -> pygame.Rect:
 
 def _clock_width(vm) -> int:
     big, small = theme.font("inter-semibold", 64), theme.font("ui", 24)
-    w = theme.digits(vm["time"], big, theme.TEXT).get_width()
+    w = theme.digits_width(vm["time"], big)
     if vm.get("ampm"):
         w += 10 + theme.font("inter-medium", 24).size(vm["ampm"])[0]
     return min(CLOCK_MAX_W, max(w, small.size(vm["date"])[0]) + 48)

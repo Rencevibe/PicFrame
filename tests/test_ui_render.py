@@ -360,3 +360,43 @@ def test_labels_fit_their_boxes():
     day_font = theme.font("ui-bold", 20)
     for d in settings_screen.DAY_LABELS:
         assert day_font.size(d)[0] <= 64 - 16, d
+
+
+def test_photo_chip_icons_contrast_covered():
+    icon_pairs = {(tuple(fg), tuple(bg)) for fg, bg, _ in theme.ICON_PAIRS}
+    assert (theme.ALARM, theme.CHIP_ON_WHITE) in icon_pairs  # missed-alarm bell
+    assert (theme.SECONDARY, theme.CHIP_ON_WHITE) in icon_pairs  # chip close icon
+    assert (theme.ALARM, theme.PRESSED) in icon_pairs and (theme.SECONDARY, theme.PRESSED) in icon_pairs
+
+
+def test_digits_width_matches_render_without_allocating(monkeypatch):
+    f = theme.font("inter-semibold", 64)
+    expected = {s: theme.digits(s, f, theme.TEXT).get_width() for s in ("12:41", "1:05", "23:59", "7:30")}
+    vm = photo_vm()
+    made = []
+    real = pygame.Surface
+    monkeypatch.setattr(pygame, "Surface", lambda *a, **k: made.append(a) or real(*a, **k))
+    for s, w in expected.items():
+        assert theme.digits_width(s, f) == w
+    photo_mode.chip_rects(vm)
+    assert made == []
+
+
+@pytest.mark.parametrize("progress,expected_w", [(0.0, 528), (0.5, 264), (1.0, 0)])
+def test_photo_progress_line_width(progress, expected_w):
+    surf = pygame.Surface((1280, 800))
+    surf.fill((255, 255, 255))
+    photo_mode.render(surf, photo_vm(photo=None), controls_visible=True, hide_progress=progress)
+    y = photo_mode.BAR[1] + photo_mode.BAR[3] - 4
+    teal = [x for x in range(photo_mode.BAR[0], photo_mode.BAR[0] + photo_mode.BAR[2])
+            if surf.get_at((x, y))[:3] == theme.ACCENT]
+    assert abs(len(teal) - expected_w) <= 2
+
+
+def test_night_clock_pressed_stays_dark():
+    surf = pygame.Surface((1280, 800))
+    night_clock.render(surf, dict(time="2:14", ampm="AM", alarm_label="Alarm 6:30 AM · Mon–Fri",
+                                  pressed="open_settings"))
+    assert surf.get_at((450, 530))[:3] == theme.NIGHT_PRESSED  # pressed fill is drawn …
+    lit = {surf.get_at((x, y))[:3] for x in range(0, 1280, 4) for y in range(0, 800, 4)}
+    assert max(max(c) for c in lit) <= max(theme.NIGHT)  # … and nothing is brighter than night text

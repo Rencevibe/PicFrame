@@ -61,6 +61,8 @@ ICON_PAIRS = [
     (ALARM, BANNER_ON_WHITE, "missed-alarm stripe"), (HIGHLIGHT, BANNER_ON_WHITE, "warning stripe"),
     (BG, ACCENT, "toggle-on knob"),
     (SECONDARY, PRESSED, "close icon on pressed fill"),
+    (ALARM, CHIP_ON_WHITE, "missed-alarm bell on photo chip"),
+    (SECONDARY, CHIP_ON_WHITE, "close icon on photo chip"),
     (SECONDARY, BANNER_ON_WHITE, "banner close icon over photo"),
     (SECONDARY, BANNER_PRESSED_ON_WHITE, "pressed banner close icon over photo"),
 ]
@@ -144,6 +146,12 @@ def fit(s: str, f: pygame.font.Font, max_w: int) -> str:
     while s and f.size(s.rstrip() + "…")[0] > max_w:
         s = s[:-1]
     return s.rstrip() + "…"
+
+
+def digits_width(s: str, f: pygame.font.Font) -> int:
+    """Width digits() will render, measured without allocating a surface."""
+    cell = f.size("0")[0]
+    return max(1, sum(cell if ch.isdigit() else f.size(ch)[0] for ch in s))
 
 
 def digits(s: str, f: pygame.font.Font, color) -> pygame.Surface:
