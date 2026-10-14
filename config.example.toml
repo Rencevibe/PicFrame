@@ -32,3 +32,12 @@ snooze_min = 9             # 1–30
 
 # Disk cache for resized photos
 cache_mb = 500
+
+# Screen power at night. "black" (default) just shows black and always works.
+# "cec" (cec-ctl) or "dpms" (vcgencmd display_power) turn the screen off; use them only
+# after checking they work with this exact touchscreen. On failure the frame falls back to black.
+screen_power = "black"
+
+# Brightness control: a command with {value} (10–100). Leave unset if the screen has none.
+# brightness_cmd = "ddcutil setvcp 10 {value}"
+brightness = 100

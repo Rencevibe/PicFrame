@@ -17,6 +17,7 @@ FRAME_HOME = Path("/home/pi/frame")
 UNITS = ("fahrenheit", "celsius")
 WEEK_STARTS = ("sunday", "monday")
 CORNERS = ("top-left", "top-right", "bottom-left", "bottom-right")
+SCREEN_POWER = ("black", "cec", "dpms")
 CRITICAL_KEYS = {"photo_dir", "alarm_enabled", "alarm_time", "alarm_days", "lat", "lon"}
 
 
@@ -41,6 +42,9 @@ class Config:
     snooze_min: int = 9
     cache_mb: int = 500
     todo_path: Path = FRAME_HOME / "todo.toml"
+    screen_power: str = "black"  # "black" (always works), "cec" or "dpms": verify on the real screen first
+    brightness_cmd: str | None = None  # e.g. "ddcutil setvcp 10 {value}"; None = no brightness control
+    brightness: int = 100
 
 
 # --- field parsers: return the parsed value or raise ValueError(reason) ---
@@ -89,6 +93,12 @@ def _time(v):
         raise ValueError('must be "HH:MM" (24 h)') from None
 
 
+def _command(v):
+    if not isinstance(v, str) or "{value}" not in v or "\0" in v:
+        raise ValueError('must be a command containing "{value}"')
+    return v
+
+
 def _days(v):
     if (not isinstance(v, list) or not v
             or any(isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 6 for d in v)):
@@ -116,6 +126,9 @@ PARSERS = {
     "snooze_min": _int(1, 30),
     "cache_mb": _int(50, 10000),
     "todo_path": _path,
+    "screen_power": _choice(SCREEN_POWER),
+    "brightness_cmd": _command,
+    "brightness": _int(10, 100),
 }
 
 

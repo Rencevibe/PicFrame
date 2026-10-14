@@ -16,7 +16,9 @@ import pygame
 
 from frame.alarm import Alarm
 from frame.config import load_config, save_config
+from frame import sound
 from frame.controller import Controller, days_label, fmt_clock
+from frame.display import Brightness, DisplayPower
 from frame.night import NightController
 from frame.photos import ImageCache, PhotoLibrary
 from frame.today import load_items, visible_today
@@ -194,6 +196,10 @@ class App:
                                save=lambda c: save_config(c, config_path))
         self.ctrl.config_banner = banner
         self.weather = WeatherService(self.cfg)
+        self.display = DisplayPower(self.cfg.screen_power)
+        self.brightness = Brightness(self.cfg.brightness_cmd)
+        self.brightness.set(self.cfg.brightness)
+        self.sounding = False
         self.slides = Slideshow(PhotoLibrary(self.cfg.photo_dir),
                                 ImageCache(config_path.parent / "cache", self.cfg.cache_mb), self.clock)
         log.info("photos: %d in %s", self.slides.rescan(), self.cfg.photo_dir)
@@ -279,6 +285,15 @@ class App:
             if not self.handle(event, now):
                 return False
         self.ctrl.on_tick(now)
+        self.display.set(self.ctrl.mode != "dark")
+        self.brightness.set(self.cfg.brightness)  # runs only when Settings changed it
+        ringing = self.alarm.state == "ringing"
+        if ringing != self.sounding:
+            if ringing:
+                sound.play_alarm(loop=True)
+            else:
+                sound.stop()
+            self.sounding = ringing
         self.weather.update(now)
         t = self.clock()
         if t - self.last_rescan >= RESCAN_S:
@@ -297,7 +312,7 @@ class App:
             self.buttons = photo_mode.render(s, self.photo_vm(now), self.ctrl.controls_visible,
                                              self.ctrl.hide_progress)
         elif mode == "settings":
-            self.buttons = settings_screen.render(s, c, brightness_supported=False,
+            self.buttons = settings_screen.render(s, c, brightness_supported=self.brightness.supported,
                                                   save_error=self.ctrl.save_error, pressed=self.pressed)
         elif mode == "alarm":
             hhmm, ampm = split_time(now.time(), c.clock_24h)
