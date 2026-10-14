@@ -59,3 +59,30 @@ def test_bad_file_returns_empty(tmp_path):
     bad = tmp_path / "todo.toml"
     bad.write_text("item = [", encoding="utf-8")
     assert load_items(bad) == []
+
+
+def test_missing_kind_is_skipped(tmp_path):
+    path = tmp_path / "todo.toml"
+    path.write_text('[[item]]\ntitle = "No kind"\n\n[[item]]\ntitle = "Ok"\nkind = "todo"\n', encoding="utf-8")
+    assert [i.title for i in load_items(path)] == ["Ok"]
+
+
+def test_offset_or_seconds_time_is_skipped(tmp_path):
+    path = tmp_path / "todo.toml"
+    path.write_text(
+        '[[item]]\ntitle = "Offset"\nkind = "todo"\ntime = "13:30+02:00"\n\n'
+        '[[item]]\ntitle = "Seconds"\nkind = "todo"\ntime = "13:30:00"\n\n'
+        '[[item]]\ntitle = "Ok"\nkind = "todo"\ntime = "13:30"\n', encoding="utf-8")
+    items = load_items(path)
+    assert [i.title for i in items] == ["Ok"]
+    assert items[0].at.tzinfo is None
+    assert [i.title for i in visible_today(items, NOW)[0]] == ["Ok"]
+
+
+def test_aware_now_uses_local_wall_time():
+    from zoneinfo import ZoneInfo
+    now = datetime(2026, 10, 14, 12, 41, tzinfo=ZoneInfo("America/Los_Angeles"))
+    items = [appt("Past", time(9, 30)), appt("Later", time(13, 30)), todo("Untimed")]
+    shown, more = visible_today(items, now)
+    assert [i.title for i in shown] == ["Later", "Untimed"]
+    assert more == 0

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import tomllib
 from dataclasses import dataclass
 from datetime import date, datetime, time
@@ -21,13 +22,20 @@ class Item:
     done: bool = False
 
 
+def _hhmm(v) -> time:
+    """Naive local "HH:MM" only: offsets or seconds would break comparisons with now."""
+    if not isinstance(v, str) or not re.fullmatch(r"\d{2}:\d{2}", v):
+        raise ValueError('time must be "HH:MM"')
+    return time(int(v[:2]), int(v[3:]))
+
+
 def _parse(raw: dict) -> Item:
-    title, kind = raw.get("title"), raw.get("kind", "todo")
+    title, kind = raw.get("title"), raw.get("kind")
     if not isinstance(title, str) or not title.strip():
         raise ValueError("missing title")
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {', '.join(KINDS)}")
-    at = time.fromisoformat(raw["time"]) if "time" in raw else None
+    at = _hhmm(raw["time"]) if "time" in raw else None
     day = date.fromisoformat(raw["date"]) if "date" in raw else None
     done = raw.get("done", False)
     if not isinstance(done, bool):

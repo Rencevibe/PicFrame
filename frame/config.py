@@ -68,8 +68,8 @@ def _choice(options: tuple[str, ...]):
 
 
 def _path(v):
-    if not isinstance(v, str) or not v.strip():
-        raise ValueError("must be a folder path")
+    if not isinstance(v, str) or not v.strip() or "\0" in v:
+        raise ValueError("must be a non-empty path without NUL characters")
     return Path(v)
 
 
@@ -133,8 +133,8 @@ def _read_toml(path: Path) -> tuple[dict | None, str | None]:
             return tomllib.load(f), None
     except FileNotFoundError:
         return None, f"{path.name} not found"
-    except (OSError, tomllib.TOMLDecodeError) as e:
-        return None, f"{path.name} is not valid TOML ({e})"
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as e:
+        return None, f"{path.name} is not valid UTF-8 TOML ({e})"
 
 
 def _validate(data: dict) -> tuple[Config, list[str], bool]:
@@ -194,6 +194,19 @@ def _to_toml(cfg: Config) -> dict:
     return out
 
 
+def _fsync_dir(folder: Path) -> None:
+    """Make the rename durable across power loss. The new file is already in place,
+    so a failure here is logged, not reported as a failed save."""
+    try:
+        fd = os.open(folder, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError as e:
+        log.warning("config: saved, but syncing directory %s failed: %s", folder, e)
+
+
 def save_config(cfg: Config, path: Path) -> str | None:
     """Atomically write cfg. Returns None on success, else a short reason; on failure
     the existing config.toml is left untouched."""
@@ -209,6 +222,7 @@ def save_config(cfg: Config, path: Path) -> str | None:
         if _read_toml(path)[0] is not None:  # keep the last good file as .bak
             shutil.copy2(path, path.with_name(path.name + ".bak"))
         os.replace(tmp, path)
+        _fsync_dir(path.parent)
         return None
     except (OSError, ValueError, TypeError) as e:
         log.error("config: save failed: %s", e)
