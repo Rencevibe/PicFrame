@@ -37,6 +37,7 @@ def _blend(fg, bg, alpha: float):
 
 CHIP_ON_WHITE = _blend(BG, WHITE, 0.8)  # photo chips: bg at 80% over the brightest photo
 BANNER_ON_WHITE = _blend(BG, WHITE, 0.9)
+BANNER_PRESSED_ON_WHITE = _blend(PRESSED, WHITE, 0.9)  # missed-alarm banner while pressed
 
 # Every text pair the screens draw, including pressed and disabled states (spec "Contrast")
 TEXT_PAIRS = [
@@ -48,6 +49,7 @@ TEXT_PAIRS = [
     (ALARM, BG, "ALARM caption"), (NIGHT, BLACK, "night clock"),
     (TEXT, CHIP_ON_WHITE, "text on photo chip"), (SECONDARY, CHIP_ON_WHITE, "secondary on photo chip"),
     (TEXT, BANNER_ON_WHITE, "banner text over photo"),
+    (TEXT, BANNER_PRESSED_ON_WHITE, "pressed banner text over photo"),
 ]
 # Icons, markers, outlines and stripes (≥ 3:1)
 ICON_PAIRS = [
@@ -57,6 +59,9 @@ ICON_PAIRS = [
     (ALARM, RAISED, "snoozed bell"), (ALARM, PRESSED, "snoozed bell pressed"),
     (ALARM, BANNER_ON_WHITE, "missed-alarm stripe"), (HIGHLIGHT, BANNER_ON_WHITE, "warning stripe"),
     (BG, ACCENT, "toggle-on knob"),
+    (SECONDARY, PRESSED, "close icon on pressed fill"),
+    (SECONDARY, BANNER_ON_WHITE, "banner close icon over photo"),
+    (SECONDARY, BANNER_PRESSED_ON_WHITE, "pressed banner close icon over photo"),
 ]
 
 

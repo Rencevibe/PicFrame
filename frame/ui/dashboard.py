@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date
+from functools import lru_cache
 
 import pygame
 
@@ -174,6 +175,17 @@ def _weather(surf, vm):
     theme.text(surf, theme.fit(label, f, hl.left - 16 - (t.right + 14)), f, theme.TEXT, (t.right + 14, cy), "lm")
 
 
+_rounded_last: tuple[pygame.Surface, pygame.Surface] | None = None  # (photo, rounded copy)
+
+
+def _rounded_cached(img: pygame.Surface, radius: int) -> pygame.Surface:
+    """Rounding allocates a full-size copy and mask: do it once per photo, not every frame."""
+    global _rounded_last
+    if _rounded_last is None or _rounded_last[0] is not img:
+        _rounded_last = (img, _rounded(img, radius))
+    return _rounded_last[1]
+
+
 def _rounded(img: pygame.Surface, radius: int) -> pygame.Surface:
     out = img.convert_alpha() if pygame.display.get_init() and pygame.display.get_surface() else img.copy()
     if out.get_flags() & pygame.SRCALPHA == 0:
@@ -189,7 +201,7 @@ def _rounded(img: pygame.Surface, radius: int) -> pygame.Surface:
 def _photo(surf, vm):
     photo = vm.get("photo")
     if photo is not None:
-        surf.blit(_rounded(photo, 16), PHOTO.topleft)
+        surf.blit(_rounded_cached(photo, 16), PHOTO.topleft)
         return
     pygame.draw.rect(surf, theme.BG, PHOTO, border_radius=16)
     cx = PHOTO.centerx
@@ -200,18 +212,29 @@ def _photo(surf, vm):
     theme.text(surf, "Add photos with rsync over SSH", theme.font("ui", 20), theme.SECONDARY, (cx, 512), "mm")
 
 
-def _banner(surf, banner, pressed) -> list[Button]:
+@lru_cache(maxsize=1)
+def _banner_shadow() -> pygame.Surface:
     r = BANNER
     shadow = pygame.Surface((r.width + 16, r.height + 16), pygame.SRCALPHA)
     for i in range(8, 0, -2):  # soft shadow
         pygame.draw.rect(shadow, (0, 0, 0, 14), shadow.get_rect().inflate(-i * 2 + 2, -i * 2 + 2), border_radius=24)
-    surf.blit(shadow, (r.left - 8, r.top - 6))
-    card = pygame.Surface(r.size, pygame.SRCALPHA)
-    missed = banner.get("kind") == "missed"
-    fill = theme.PRESSED if (missed and pressed == "clear_banner") else theme.BG
+    return shadow
+
+
+@lru_cache(maxsize=4)
+def _banner_card(missed: bool, pressed: bool) -> pygame.Surface:
+    card = pygame.Surface(BANNER.size, pygame.SRCALPHA)
+    fill = theme.PRESSED if pressed else theme.BG
     pygame.draw.rect(card, (*fill, 230), card.get_rect(), border_radius=16)
-    pygame.draw.rect(card, theme.ALARM if missed else theme.HIGHLIGHT, (0, 0, 6, r.height), border_radius=3)
-    surf.blit(card, r.topleft)
+    pygame.draw.rect(card, theme.ALARM if missed else theme.HIGHLIGHT, (0, 0, 6, BANNER.height), border_radius=3)
+    return card
+
+
+def _banner(surf, banner, pressed) -> list[Button]:
+    r = BANNER
+    missed = banner.get("kind") == "missed"
+    surf.blit(_banner_shadow(), (r.left - 8, r.top - 6))
+    surf.blit(_banner_card(missed, missed and pressed == "clear_banner"), r.topleft)
     label = banner["text"] + (f" · {banner['more']} more" if banner.get("more") else "")
     f = theme.font("ui", 22)
     room = r.width - 26 - (72 if missed else 24)

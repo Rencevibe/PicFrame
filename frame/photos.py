@@ -18,6 +18,8 @@ BASE_EXTS = {".jpg", ".jpeg", ".png"}
 BACKDROP_SCALE = 8      # backdrop is made at 1/8 size …
 BACKDROP_BLUR = 24 / BACKDROP_SCALE  # … so radius 3 there ≈ radius 24 at full size
 BACKDROP_BRIGHTNESS = 0.4
+# Largest image decoded (after JPEG draft scaling): 40 MP ≈ 120 MB as RGB, safe on a 1 GB Pi 3
+MAX_DECODE_PIXELS = 40_000_000
 
 
 class PhotoLibrary:
@@ -62,7 +64,7 @@ class ImageCache:
     def __init__(self, dir: Path, limit_mb: int):
         self.dir = Path(dir)
         self.limit_bytes = limit_mb * 1024 * 1024
-        self._bad: set[tuple[str, int]] = set()
+        self._bad: set[tuple[str, int, int]] = set()
         self._stamp = 0
 
     def _touch(self, path: Path) -> None:
@@ -74,20 +76,22 @@ class ImageCache:
         """Display-ready JPEG of src at exactly `size`: "fill" crops, "fit" letterboxes onto a
         blurred backdrop. None if the source is missing or unreadable (logged once)."""
         try:
-            mtime = src.stat().st_mtime_ns
+            st = src.stat()
         except OSError:
             return None
-        key = f"{src.resolve()}|{mtime}|{size[0]}x{size[1]}|{mode}"
+        # mtime + byte size: an edited file copied with its old mtime (rsync -t) still misses
+        version = (str(src), st.st_mtime_ns, st.st_size)
+        key = f"{src.resolve()}|{st.st_mtime_ns}|{st.st_size}|{size[0]}x{size[1]}|{mode}"
         out = self.dir / (hashlib.sha1(key.encode()).hexdigest() + ".jpg")
         if out.exists():
             self._touch(out)
             return out
-        if (str(src), mtime) in self._bad:
+        if version in self._bad:
             return None
         try:
             im = _render(src, size, mode)
         except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:
-            self._bad.add((str(src), mtime))
+            self._bad.add(version)
             log.warning("photos: skipping unreadable %s (%s)", src, e)
             return None
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -123,6 +127,8 @@ def _open(src: Path, size: tuple[int, int]) -> Image.Image:
         if im.getexif().get(0x0112) in (5, 6, 7, 8):
             w, h = h, w
         im.draft("RGB", (w, h))
+    if im.width * im.height > MAX_DECODE_PIXELS:  # checked before any pixels are decoded
+        raise ValueError(f"{im.width}×{im.height} is larger than {MAX_DECODE_PIXELS // 1_000_000} MP")
     im = ImageOps.exif_transpose(im)
     return im.convert("RGB")
 

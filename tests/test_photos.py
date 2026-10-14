@@ -159,3 +159,31 @@ def test_eviction_under_limit(tmp_path):
     assert sum(f.stat().st_size for f in files) <= cache.limit_bytes
     assert last.exists() and outs[0].exists()  # newest + recently used survive
     assert not outs[1].exists()  # least recently used went first
+
+
+def test_same_mtime_replacement_misses_cache(tmp_path):
+    import os
+    cache = ImageCache(tmp_path / "cache", 500)
+    src = make(tmp_path / "a.png", (800, 600), (255, 0, 0))
+    first = cache.get(src, (664, 600), "fill")
+    stamp = src.stat().st_mtime_ns
+    noise(src, (900, 600))  # different photo, different byte size …
+    os.utime(src, ns=(stamp, stamp))  # … but the same mtime (e.g. rsync -t, coarse clocks)
+    second = cache.get(src, (664, 600), "fill")
+    assert second != first
+    assert Image.open(second).getpixel((332, 300)) != (255, 0, 0)
+
+
+def test_oversized_image_rejected_before_decoding(tmp_path, monkeypatch):
+    import frame.photos as photos
+    monkeypatch.setattr(photos, "MAX_DECODE_PIXELS", 1000 * 1000)
+    big_png = make(tmp_path / "big.png", (1200, 1000))
+    cache = ImageCache(tmp_path / "cache", 500)
+    loads = []
+    real_load = Image.Image.load
+    monkeypatch.setattr(Image.Image, "load", lambda self: loads.append(self.size) or real_load(self))
+    assert cache.get(big_png, (664, 600), "fill") is None
+    assert (1200, 1000) not in loads  # never decoded at full size
+    # A big JPEG is fine: draft() decodes it at reduced scale, under the limit
+    big_jpg = make(tmp_path / "big.jpg", (4000, 3000))  # 12 MP, drafted to 1000×750
+    assert cache.get(big_jpg, (664, 600), "fill") is not None

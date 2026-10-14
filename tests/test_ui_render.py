@@ -162,3 +162,31 @@ def test_dashboard_renders_all_states(state):
     assert surf.get_at((5, 5))[:3] == theme.BG  # screen margin
     assert surf.get_at((40, 400))[:3] == theme.PANEL
     pygame.image.save(surf, str(OUT / f"dashboard-{state}.png"))
+
+
+def test_banner_close_icon_contrast_covered():
+    pairs = {(tuple(fg), tuple(bg)) for fg, bg, _ in theme.ICON_PAIRS}
+    assert (theme.SECONDARY, theme.PRESSED) in pairs
+    assert (theme.SECONDARY, theme.BANNER_PRESSED_ON_WHITE) in pairs
+
+
+def test_static_layers_cached_between_frames(monkeypatch):
+    from frame.ui import dashboard
+    layer_sizes = {(664, 600), (648, 80), (632, 64)}  # rounded photo, banner shadow, banner card
+    made = []
+    real = pygame.Surface
+    surf = real((1280, 800))
+    vm = base_vm(banner=dict(text="Missed alarm 6:30 AM", kind="missed", more=0))
+    next_photo = landscape_photo()
+    monkeypatch.setattr(dashboard.pygame, "Surface",
+                        lambda *a, **k: (tuple(a[0]) in layer_sizes and made.append(a[0])) or real(*a, **k))
+    render(surf, vm)
+    first = len(made)
+    for _ in range(5):  # same photo and banner on later frames: no new layers
+        render(surf, vm)
+    assert len(made) == first
+    vm["photo"] = next_photo  # a new photo is rounded once, then reused
+    render(surf, vm)
+    after_new = len(made)
+    render(surf, vm)
+    assert after_new > first and len(made) == after_new
