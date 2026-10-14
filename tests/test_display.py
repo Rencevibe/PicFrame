@@ -131,3 +131,63 @@ def test_config_display_fields_roundtrip(tmp_path):
     loaded, warnings, _ = load_config(path)
     assert (loaded.screen_power, loaded.brightness, loaded.brightness_cmd) == ("black", 100, None)
     assert len(warnings) == 3
+
+
+def test_playback_failure_after_init_stays_visual(monkeypatch, caplog):
+    sound._reset()
+
+    class BrokenSound:
+        def __init__(self, *a):
+            pass
+
+        def play(self, *a, **k):
+            raise pygame.error("ALSA: underrun / device unplugged")
+
+        def stop(self):
+            raise pygame.error("device gone")
+
+        def get_num_channels(self):
+            return 0
+
+    monkeypatch.setattr(pygame.mixer, "get_init", lambda: (22050, -16, 1))
+    monkeypatch.setattr(pygame.mixer, "Sound", BrokenSound)
+    with caplog.at_level(logging.WARNING):
+        assert sound.play_alarm() is False
+        sound.stop()
+        assert sound.play_alarm() is False
+    assert len([r for r in caplog.records if "sound" in r.name]) == 1
+    sound._reset()
+
+
+def test_background_commands_never_block_the_caller():
+    import threading
+    import time as _t
+    started, release = threading.Event(), threading.Event()
+    calls = []
+
+    def slow_run(cmd, **kw):
+        started.set()
+        release.wait(5)
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    d = DisplayPower("cec", run=slow_run, background=True)
+    b = Brightness("ddcutil setvcp 10 {value}", run=slow_run, background=True)
+    t0 = _t.monotonic()
+    d.set(False)
+    d.set(True)
+    b.set(40)
+    assert _t.monotonic() - t0 < 0.1  # returned at once although the command is still running
+    assert started.wait(2)
+    release.set()
+    d.wait(5)
+    b.wait(5)
+    assert calls == [["cec-ctl", "--to", "0", "--standby"], ["cec-ctl", "--to", "0", "--image-view-on"],
+                     ["ddcutil", "setvcp", "10", "40"]]
+
+
+def test_background_failure_still_falls_back_to_black():
+    d = DisplayPower("cec", run=FakeRun(fail=FileNotFoundError("cec-ctl")), background=True)
+    d.set(False)
+    d.wait(5)
+    assert d.method == "black"

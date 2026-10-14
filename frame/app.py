@@ -63,15 +63,37 @@ class Slideshow:
         self.fade_start = 0.0
         self.fade_s = 0.0
         self._buf = {"dash": pygame.Surface(DASH_PHOTO), "full": pygame.Surface(SIZE)}
+        self.photo_count = 0
+        self._scan: threading.Thread | None = None
 
     def rescan(self) -> int:
         with self.lib_lock:
-            return self.lib.scan()
+            self.photo_count = self.lib.scan()
+        return self.photo_count
+
+    def rescan_async(self) -> None:
+        """Periodic folder rescan on a worker thread, one at a time (os.walk on SD can be slow)."""
+        if self._scan is not None and self._scan.is_alive():
+            return
+        self._scan = threading.Thread(target=self.rescan, name="rescan", daemon=True)
+        self._scan.start()
+
+    def wait_rescan(self, timeout: float) -> None:
+        if self._scan is not None:
+            self._scan.join(timeout)
 
     def _prepare(self, path: Path):
+        """Resize (cache) and decode both sizes. Safe on a worker thread; only convert() is left
+        for the UI thread."""
         dash = self.cache.get(path, DASH_PHOTO, "fill")
         full = self.cache.get(path, SIZE, "fit") if dash else None
-        return (path, dash, full) if full else None
+        if not full:
+            return None
+        try:
+            return path, pygame.image.load(str(dash)), pygame.image.load(str(full))
+        except (pygame.error, OSError) as e:  # cache file evicted or damaged meanwhile
+            log.warning("slideshow: could not load %s (%s)", path, e)
+            return None
 
     def _prepare_next(self, tries: int = 10):
         """Next usable photo (unreadable files are skipped), or None."""
@@ -87,11 +109,7 @@ class Slideshow:
 
     def _show(self, prepared, fade_s: float, record: bool = True) -> None:
         path, dash, full = prepared
-        try:
-            loaded = (path, pygame.image.load(str(dash)).convert(), pygame.image.load(str(full)).convert())
-        except (pygame.error, OSError) as e:  # cache file evicted or damaged meanwhile
-            log.warning("slideshow: could not load %s (%s)", path, e)
-            return
+        loaded = (path, dash.convert(), full.convert())  # fast; must run on the display thread
         if fade_s > 0 and self.current:
             self.fade_from, self.fade_start, self.fade_s = self.current, self.clock(), fade_s
         else:
@@ -140,8 +158,13 @@ class Slideshow:
         """Prev / Next: a cut (no fade) that also restarts the interval."""
         if step > 0:
             prepared = None
-            if self._thread is not None and self._done.is_set():
-                prepared, self._ready, self._thread = self._ready, None, None
+            if self._thread is not None:
+                # A preload is queued: show that photo (finishing it if needed) so the shuffle
+                # order is kept, instead of skipping past it and showing it later
+                self._done.wait(10)
+                if self._done.is_set():
+                    prepared = self._ready
+                self._ready, self._thread = None, None
             prepared = prepared or self._prepare_next()
             if prepared:
                 self._show(prepared, 0)
@@ -196,8 +219,8 @@ class App:
                                save=lambda c: save_config(c, config_path))
         self.ctrl.config_banner = banner
         self.weather = WeatherService(self.cfg)
-        self.display = DisplayPower(self.cfg.screen_power)
-        self.brightness = Brightness(self.cfg.brightness_cmd)
+        self.display = DisplayPower(self.cfg.screen_power, background=True)
+        self.brightness = Brightness(self.cfg.brightness_cmd, background=True)
         self.brightness.set(self.cfg.brightness)
         self.sounding = False
         self.slides = Slideshow(PhotoLibrary(self.cfg.photo_dir),
@@ -297,7 +320,7 @@ class App:
         self.weather.update(now)
         t = self.clock()
         if t - self.last_rescan >= RESCAN_S:
-            self.slides.rescan()
+            self.slides.rescan_async()
             self.last_rescan = t
         self.slides.update(self.cfg.interval_s, self.cfg.fade_ms, self.ctrl.take_photo_step())
         self.render(now)

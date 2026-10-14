@@ -272,3 +272,24 @@ def test_formatting_helpers():
     assert days_label({1, 2, 3}) == "Tue–Thu"
     assert fmt_clock(time(6, 30), False) == "6:30 AM" and fmt_clock(time(0, 5), True) == "00:05"
     assert fmt_clock(time(12, 0), False) == "12:00 PM"
+
+
+def test_press_started_in_guard_is_ignored_even_if_released_later():
+    r = Rig(day(6, 29, 59))
+    r.advance(1)
+    assert r.c.mode == "alarm"
+    r.advance(0.5, step=0.5)
+    down = r.t  # finger goes down 0.5 s after the alarm appeared …
+    r.advance(1)
+    r.c.on_tap("dismiss", r.now, down_at=down)  # … and lifts 1.5 s after
+    assert r.alarm.state == "ringing" and r.c.mode == "alarm"
+
+
+def test_clearing_photo_chip_also_shows_controls():
+    r = Rig(day(6, 29, 59))
+    r.advance(1)
+    r.advance(600, step=5)  # unanswered → missed
+    r.tap("to_photo")
+    assert not r.c.controls_visible
+    r.tap("clear_banner")
+    assert r.alarm.missed_at is None and r.c.controls_visible

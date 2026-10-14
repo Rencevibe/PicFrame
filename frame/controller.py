@@ -152,8 +152,9 @@ class Controller:
         down_at = t if down_at is None else down_at
         mode = self.mode
         if mode == "alarm":
-            # Touch guard: ignore a finger that went down before the alarm showed, or in its first second
-            if down_at < self.alarm_shown_at or t - self.alarm_shown_at < ALARM_GUARD_S:
+            # Touch guard: ignore any finger that went down before the alarm showed or during its
+            # first second, even if it lifts later
+            if down_at < self.alarm_shown_at + ALARM_GUARD_S:
                 return
             if button_id == "snooze":
                 self.alarm.snooze(now)
@@ -184,8 +185,7 @@ class Controller:
                 self.mode, self.day_mode, self.controls_until = "dashboard", "dashboard", None
                 return
             if button_id == "clear_banner":
-                self.alarm.missed_at = None
-                return
+                self.alarm.missed_at = None  # and, like any tap in Photo mode, show the bar
             if button_id in ("prev", "next"):
                 self._photo_step = -1 if button_id == "prev" else 1
             self.controls_until = t + CONTROLS_S  # any other tap shows / keeps the bar
