@@ -62,6 +62,7 @@ These need the real hardware. Tick them off on the Pi; the results are not in th
 **After setup and a reboot**
 - [ ] `i2cdetect -y 1` shows the RTC at `68` (shown as `UU` once the driver has it)
 - [ ] `sudo hwclock -r` matches the real time; power off, unplug the network, boot again, and the time is still right
+- [ ] Network time reaches the RTC: with the network on, `timedatectl` shows "System clock synchronized: yes"; then run `sudo /etc/cron.hourly/picframe-rtc-sync` and `sudo hwclock -r`, and the RTC matches to the second
 - [ ] `systemctl status frame` shows active (running)
 - [ ] The frame is visible within 45 s of power-on. Time it with a stopwatch from plugging in, and note `systemd-analyze` and `systemd-analyze blame | head`
 - [ ] `sudo systemctl kill -s KILL frame`: the frame is back within 10 s
@@ -100,7 +101,9 @@ These need the real hardware. Tick them off on the Pi; the results are not in th
 - [ ] `sudo kill -9 $(systemctl show -p MainPID --value frame)` once: the frame is back within 10 s
 
 **Pass**
-- [ ] No crash besides the forced kill: check `journalctl -u frame --since "2 days ago" | grep -iE "traceback|error"`
+- [ ] No crash besides the forced kill:
+  - `systemctl show frame -p NRestarts` is 1 if the kill came after the reboot (the count resets at boot), or 0 if it came before
+  - `journalctl -u frame --since "2 days ago" | grep -c Traceback` is 0. Weather warnings while offline are expected and are not crashes
 - [ ] `~/PicFrame/deploy/memlog.sh --report`: RSS growth < 10 % after each run's first hour (it exits 0 on pass)
 - [ ] Every Phase 1 acceptance item in the spec is checked
 

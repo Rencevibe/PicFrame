@@ -5,6 +5,8 @@ After=time-sync.target
 
 [Service]
 User=pi
+# DRM/KMS display, touch input and ALSA, even if this user isn't in those groups
+SupplementaryGroups=video render input audio
 WorkingDirectory=/home/pi/PicFrame
 Environment=SDL_VIDEODRIVER=kmsdrm
 ExecStart=/usr/bin/python3 -m frame.app

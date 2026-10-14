@@ -41,9 +41,14 @@ else
   echo "   $HWCLOCK_SET already allows the RTC (or is absent)"
 fi
 
-say "Network time"
+say "Network time, written back to the RTC"
 run systemctl enable --now systemd-timesyncd
 run timedatectl set-ntp true
+# The kernel may not copy NTP time to the DS3231 by itself; do it hourly, only once NTP has synced,
+# so a wrong system clock is never written to the RTC.
+RTC_SYNC="/etc/cron.hourly/picframe-rtc-sync"
+run sh -c "printf '%s\n' '#!/bin/sh' 'if [ \"\$(timedatectl show -p NTPSynchronized --value)\" = yes ]; then hwclock -w; fi' > '$RTC_SYNC'"
+run chmod 755 "$RTC_SYNC"
 
 say "Timezone: $TZ_NAME"
 run timedatectl set-timezone "$TZ_NAME"
