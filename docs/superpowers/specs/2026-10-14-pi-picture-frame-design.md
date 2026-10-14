@@ -1,6 +1,6 @@
 # Pi Picture Frame — Design Spec
 
-**Date:** 2026-10-14 · **Status:** Draft for review · **Rev 2:** UX/UI design pass (see "Design review changes" at the end)
+**Date:** 2026-10-14 · **Status:** Draft for review · **Rev 3:** contemporary navy and teal palette pass (see "Design review changes" at the end)
 
 ## Goal
 A Raspberry Pi 3 wooden tabletop frame: photo slideshow + clock/date, calendar, weather and alarm, touch-controlled, runs unattended for weeks.
@@ -22,17 +22,17 @@ Raspberry Pi OS Lite · Python 3 + pygame (SDL KMS/DRM, no desktop) · Open-Mete
 ### Colors
 | Token | Hex | Use |
 |---|---|---|
-| `bg` | `#101914` | Screen background |
-| `panel` | `#1B2821` | Panels, cards |
-| `raised` | `#24352B` | Buttons and tappable rows on a panel |
-| `pressed` | `#2F4437` | Any button while the finger is down |
-| `divider` | `#2A3A30` | 1 px row separators in Settings |
-| `text` | `#F2F0E8` | Primary text (15.7:1 on `bg`) |
-| `secondary` | `#B7C2B8` | Labels, metadata (8.3:1 on `panel`) |
-| `accent` | `#A8C686` | Today, On states, primary buttons; text on it is `bg` (9.5:1) |
-| `highlight` | `#E6B86A` | To-do marker, warnings |
-| `alarm` | `#D96B5F` | Alarm label, ring pulse, missed-alarm stripe. **Never** behind `text` (2.96:1 fails); if used as a fill, text on it is `bg` (5.3:1) |
-| `night` | `#6B786E` | All night clock text including AM/PM, on pure black `#000000` (4.5:1) |
+| `bg` | `#0E1726` | Midnight navy screen background |
+| `panel` | `#172538` | Blue-slate panels and cards |
+| `raised` | `#22364B` | Buttons and tappable rows on a panel |
+| `pressed` | `#2D4862` | Any button while the finger is down |
+| `divider` | `#2B4054` | 1 px row separators in Settings |
+| `text` | `#F4F7FB` | Cool white primary text |
+| `secondary` | `#B7C6D6` | Blue-gray labels and metadata |
+| `accent` | `#43D9C3` | Vivid teal for Today, On states, and primary buttons; text on it is `bg` |
+| `highlight` | `#F2B66D` | Warm amber to-do marker and warnings |
+| `alarm` | `#FF766F` | Coral alarm label, ring pulse, and missed-alarm stripe. **Never** behind `text`; use `bg` for any alarm-colored fill |
+| `night` | `#929DAA` | All night clock text including AM/PM, on pure black `#000000` (7.6:1) |
 
 ### Type scale
 Inter for clock, numbers and headings; Atkinson Hyperlegible for UI text. Nothing smaller than 18 px.
@@ -63,17 +63,17 @@ Rule: text ≥ 4.5:1 against its actual background in every state; icons and con
 
 | Pair | Ratio |
 |---|---|
-| `text` on `bg` / `panel` / `raised` / `pressed` | 15.7 / 13.4 / 11.4 / 9.2 |
-| `secondary` on `bg` / `panel` / `raised` / `pressed` | 9.8 / 8.3 / 7.1 / 5.7 |
-| `bg` on `accent` / pressed accent `#BCD69E` | 9.5 / 11.3 |
-| `alarm` on `bg` (ALARM caption only) | 5.3 |
-| `night` on black | 4.5 |
-| `text` / `secondary` on a photo chip over a pure-white photo (`bg` 80% → `#404743`) | 8.4 / 5.2 |
+| `text` on `bg` / `panel` / `raised` / `pressed` | 16.7 / 14.4 / 11.5 / 8.8 |
+| `secondary` on `bg` / `panel` / `raised` / `pressed` | 10.3 / 8.9 / 7.1 / 5.5 |
+| `bg` on `accent` / pressed accent `#61E5D2` | 10.2 / 11.7 |
+| `alarm` on `bg` (ALARM caption only) | 6.9 |
+| `night` on black | 7.6 |
+| `text` / `secondary` on a photo chip over a pure-white photo (`bg` 80% opacity) | Both exceed 4.5:1 |
 | Icon `secondary` on `raised` (toggle-off knob, disabled stepper) | 7.1 |
 
-Not allowed (measured failures): `alarm` text on `raised` (3.8) or `pressed` (3.1); `text` on `alarm` (3.0); dimmed greys like `#6B766D` on `panel` (3.2). `raised` buttons on `panel` are only 1.2:1, so a button is identified by its icon or label (≥ 7:1), never by its fill alone.
+Not allowed: `alarm` as text on buttons or as a background behind `text`. `raised` buttons on `panel` are only 1.25:1, so a button is identified by its icon or label, never by its fill alone.
 
-**Disabled state** (stepper at the end of its range, night start/end while night mode is off): the button loses its `raised` fill and its icon turns `secondary`, and values stay `secondary`. That is still 7–8:1, readable but clearly not active. Disabled buttons ignore taps.
+**Disabled state** (stepper at the end of its range, night start/end while night mode is off): the button loses its `raised` fill and its icon turns `secondary`, and values stay `secondary`. That is still at least 7:1, readable but clearly not active. Disabled buttons ignore taps.
 
 ### Icons
 Outlined, 2 px rounded strokes, pre-rendered PNGs in 32 and 48 px.
@@ -297,3 +297,8 @@ Confirm exact Pi 3 model and touchscreen model (touch interface, display control
 **Mockups:** `docs/design/` (dashboard, dashboard-snoozed, dashboard-empty, photo, alarm, night-clock, settings, settings-save-error). They use Inter for all text because Atkinson Hyperlegible wasn't available to the renderer; the build uses Atkinson for UI text as specified.
 
 **Considered, deferred** (not Phase 1): pause button in Photo mode; day/night variants of the clear icon; ±2 px hourly layout shift against IPS image retention; hold-to-repeat on steppers.
+
+
+### Rev 3 — Contemporary navy and teal palette
+
+The forest-green palette is replaced with midnight navy, blue-slate surfaces, a bright teal action color, and warm amber details. This gives the frame a cleaner, more current look while retaining the calm low-light character. Coral remains reserved for alarms. All palette contrast ratios above are recalculated for these tokens; text remains at or above 4.5:1 in each listed state. The updated mockups are in `docs/design/`.
