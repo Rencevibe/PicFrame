@@ -108,6 +108,12 @@ def test_dst_gap_and_repeated_hour_ring_once():
         assert len(rings) == 1
 
 
+def test_dst_gap_next_trigger_is_normalized_to_first_valid_local_time():
+    spring = datetime(2026, 3, 8, 0, 0, tzinfo=LA)
+    trigger = next_trigger(spring, cfg(alarm_days=set(range(7)), alarm_time=time(2, 30)))
+    assert trigger == datetime(2026, 3, 8, 3, 30, tzinfo=LA)
+
+
 def test_changed_alarm_time_does_not_ring_for_past_time():
     alarm = Alarm(cfg(alarm_days=set(range(7))))
     alarm.tick(at(12, 0))

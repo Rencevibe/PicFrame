@@ -30,6 +30,8 @@ def _first_after(t: datetime, cfg: Config) -> datetime | None:
         day = t.date() + timedelta(days=offset)
         if day.weekday() in cfg.alarm_days:
             cand = datetime.combine(day, cfg.alarm_time, tzinfo=t.tzinfo)
+            # Normalize nonexistent DST wall times to the first valid local instant.
+            cand = cand.astimezone(timezone.utc).astimezone(t.tzinfo)
             if _ts(cand) > _ts(t):
                 return cand
     return None
