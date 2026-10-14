@@ -82,3 +82,39 @@ These need the real hardware. Tick them off on the Pi; the results are not in th
 - [ ] Read the clock from 2.5 m and the Today list from 0.6 m
 - [ ] Hit every button with a fingertip, including the day chips. Try Snooze and Dismiss half-asleep (eyes half closed, no aiming)
 - [ ] In a dark room the night clock is dim enough, and the alarm screen wakes you
+
+## 48 h soak test (plan Task 12)
+
+**Start**
+1. Log memory every 10 min, including across reboots:
+   - `crontab -e`, then add `@reboot /home/pi/PicFrame/deploy/memlog.sh`
+   - start it now with `nohup ~/PicFrame/deploy/memlog.sh >/dev/null 2>&1 &`
+2. In Settings set the alarm 5 min ahead, and set a night window starting 1 h ahead.
+
+**During the 48 h** (note the time of each)
+- [ ] Unplug the network for 4 h: the weather goes stale ("as of …"), then shows "Weather unavailable"; the frame keeps running
+- [ ] Add 20 photos with `rsync`: they appear within 5 min, with no restart
+- [ ] Alarms: let one ring unanswered (it stops after 10 min, and "Missed alarm" stays until tapped), snooze one, and dismiss one during night mode (the screen returns to black)
+- [ ] Night on/off transitions pass on schedule; a tap shows the dim night clock
+- [ ] `sudo reboot` once: the time is right, and the frame is back within 45 s
+- [ ] `sudo kill -9 $(systemctl show -p MainPID --value frame)` once: the frame is back within 10 s
+
+**Pass**
+- [ ] No crash besides the forced kill: check `journalctl -u frame --since "2 days ago" | grep -iE "traceback|error"`
+- [ ] `~/PicFrame/deploy/memlog.sh --report`: RSS growth < 10 % after each run's first hour (it exits 0 on pass)
+- [ ] Every Phase 1 acceptance item in the spec is checked
+
+**Results** (fill in after the run, then commit)
+
+| Item | Result |
+|---|---|
+| Dates of the run | |
+| Pi / screen model | |
+| `screen_power` method chosen | |
+| Boot to display (s) | |
+| Restart after `kill -9` (s) | |
+| RSS after 1 h / peak / growth | |
+| Crashes (besides the forced kill) | |
+| Alarm: unanswered / snoozed / dismissed at night | |
+| Network-off behavior | |
+| Notes | |
