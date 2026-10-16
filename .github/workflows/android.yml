@@ -29,5 +29,8 @@ jobs:
       - name: Report Gradle failure as annotations
         if: failure()
         run: |
-          grep -E -A25 "What went wrong|^e: |FAILED$|error:" gradle.log | head -60 \
-            | sed 's/%/%25/g' | while IFS= read -r line; do echo "::error::${line}"; done
+          # One annotation per block: GitHub keeps only 10 annotations per step
+          msg=$(grep -E -A30 "What went wrong" gradle.log | head -60 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Gradle::${msg}"
+          msg=$(grep -E "^e: |error:" gradle.log | head -30 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
+          [ -n "$msg" ] && echo "::error title=Compiler::${msg}" || true
