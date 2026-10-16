@@ -181,9 +181,11 @@ class SettingsRepositoryTest {
     private val abandoned = "content://tree/abandoned"
 
     @Test fun oldFolderGrantIsKeptUntilNoSavedCopyNamesIt() = runBlocking { // regression: SAF grant leak
-        val grants = FakeGrants(old, new, abandoned)
+        val grants = FakeGrants(old, abandoned)
         val repo = open()
         assertNull(repo.saveAndPruneGrants(sample().copy(photoDir = old), grants))
+        assertEquals(listOf(abandoned), grants.released)
+        grants.held += new // the new folder is picked
         assertNull(repo.saveAndPruneGrants(sample().copy(photoDir = new), grants))
         // The old folder is now only in the backup, but a corrupt store loads the backup:
         // releasing it here would leave the recovered settings without folder access
