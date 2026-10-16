@@ -7,7 +7,7 @@ plugins {
 android {
     // Placeholder ID until D4 (plan §6); it can't change after a Play release
     namespace = "io.github.rencevibe.picframe"
-    compileSdk = 36
+    compileSdk = 37 // Compose 1.12.1 AAR metadata requires >= 37 (V5)
 
     defaultConfig {
         applicationId = "io.github.rencevibe.picframe"
