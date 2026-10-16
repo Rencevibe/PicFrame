@@ -119,7 +119,13 @@ class ScreenshotTest {
 
     @Test fun dashboardSnoozed() = check("dashboard-snoozed", render { dashboard(dashboardVm(snoozed = true)) })
 
-    @Test fun dashboardEmpty() = check("dashboard-empty", render { dashboard(dashboardVm(photo = emptyList())) })
+    @Test fun dashboardEmpty() = check("dashboard-empty", render {
+        // The mockup's state: 24 h clock, Monday week start, nothing today, no weather, alarm off, no photos
+        dashboard(dashboardVm(photo = emptyList()).copy(
+            time = "21:05", ampm = null, todayItems = emptyList(), more = 0,
+            grid = monthGrid(LocalDate.of(2026, 10, 14), "monday"), alarmOn = false, countdown = "", weather = null,
+        ))
+    })
 
     @Test fun photo() {
         val bg = listOf(Layer(mockup("photo").asImageBitmap(), 1f))
