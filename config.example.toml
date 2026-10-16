@@ -1,0 +1,43 @@
+# PicFrame settings. Copy to /home/pi/frame/config.toml.
+# Invalid values are logged and replaced by the default shown here.
+
+photo_dir = "/home/pi/frame/photos"
+todo_path = "/home/pi/frame/todo.toml"
+
+# Slideshow
+interval_s = 30            # 5–3600 seconds
+fade_ms = 1000             # 0 = cut (use if fades stutter)
+overlay_corner = "bottom-left"   # clock chip corner in Photo mode
+
+# Weather (Open-Meteo). Set both to show weather.
+# lat = 47.61
+# lon = -122.33
+units = "fahrenheit"       # or "celsius"
+
+# Clock and calendar
+clock_24h = false
+week_start = "sunday"      # or "monday"
+
+# Night: black screen between these times; a tap shows the night clock for wake_s
+night_enabled = true
+night_start = "23:00"
+night_end = "06:00"
+wake_s = 60
+
+# Alarm
+alarm_enabled = true
+alarm_time = "06:30"
+alarm_days = [0, 1, 2, 3, 4]   # Mon=0 … Sun=6
+snooze_min = 9             # 1–30
+
+# Disk cache for resized photos
+cache_mb = 500
+
+# Screen power at night. "black" (default) just shows black and always works.
+# "cec" (cec-ctl) or "dpms" (vcgencmd display_power) turn the screen off; use them only
+# after checking they work with this exact touchscreen. On failure the frame falls back to black.
+screen_power = "black"
+
+# Brightness control: a command with {value} (10–100). Leave unset if the screen has none.
+# brightness_cmd = "ddcutil setvcp 10 {value}"
+brightness = 100
