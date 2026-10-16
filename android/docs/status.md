@@ -1,20 +1,20 @@
 # Milestone status (plan §7)
 
-Baseline: `claude/new-session-sonjj7` @ `256419c`. Work branch: `android/m0-setup`.
+Baseline: `claude/new-session-sonjj7` @ `256419c`. Work branches: `android/m0-setup`, then `android/m1-alarm-spike` (built on top of it).
 
 ## Execution checklist
 
 | # | Action | Status | Evidence |
 |---|---|---|---|
 | 1 | Record D1 and D3 | Done 2026-10-16 | `android/docs/decisions.md` |
-| 2 | Verification note for V1 and V5; V2 and V3 ahead of M1 | Done 2026-10-16, with provisional items | `android/docs/verification.md` |
-| 3 | M0 skeleton and CI | Files done; waiting on CI | `android/`, `.github/workflows/android.yml`; CI run: *pending* |
+| 2 | Verification note for V1 and V5; V2 and V3 ahead of M1 | Done 2026-10-16 | `android/docs/verification.md` |
+| 3 | M0 skeleton and CI | Done 2026-10-16 | CI run 38863455375 (green) |
 
 ## Milestones
 
 | M | Status | Output | Evidence / blocker |
 |---|---|---|---|
-| M0 Setup | **In progress.** Gate met (D1 and D3 recorded). | Skeleton (landscape, keeps screen on, hides system bars), pinned catalog, CI workflow, verification note | Done-when needs a green CI run from a clean clone. Not built locally: Google Maven is blocked in the authoring environment. |
-| M1 Alarm feasibility | Not started (depends on M0) | — | Needs a physical Android 14+ device and an older device (QA). The authoring environment has no devices. |
-| M2 Domain port | Not started (depends on M0) | — | — |
-| M3–M6 | Not started | — | D2 and D4 still open |
+| M0 Setup | **Done** 2026-10-16 | Skeleton (landscape, screen kept on, system bars hidden); pinned catalog; CI (lint, unit tests, debug APK); verification note | Green on a clean checkout: https://github.com/Rencevibe/PicFrame/actions/runs/38863455375. Note: `testDebugUnitTest` had no test sources yet, because the first real tests arrive in M2. Open follow-up: `distributionSha256Sum` (see the verification note). |
+| M1 Alarm feasibility | **In progress.** Gate met (M0 done; D1 = sideload). | Spike module `android/spike-alarm`; protocol and results table in `android/docs/m1-alarm-spike.md` | Go/No-go needs QA to run the test on a physical Android 14+ device and an older device. No device is available in the authoring environment. |
+| M2 Domain port | Not started. Unblocked by M0; M1 and M2 can run in parallel. | — | — |
+| M3–M6 | Not started | — | D2 and D4 still open; M4 waits on the M1 result |

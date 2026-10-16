@@ -12,7 +12,8 @@ All checks were made on **2026-10-16** against official sources. Each item is ma
 |---|---|---|---|
 | Play target API | From 2026-08-31, new apps and updates must target **API 36**. An extension to 2026-11-01 can be requested. | developer.android.com/google/play/requirements/target-sdk (page updated 2026-10-01) | Confirmed |
 | Sideloaded APKs (D1) | The page sets no rule for apps distributed outside Play. API 36 is used anyway, so a later Play release (follow-up) needs no retarget. | Same page | Confirmed |
-| `compileSdk`/`targetSdk` | **36** | — | Provisional until CI builds it |
+| `compileSdk` | **37**. Compose 1.12.1 AAR metadata requires ≥ 37 (CI run 38863305081 failed `checkDebugAarMetadata` at 36). AGP 9.4 supports up to 37. | CI evidence; AGP page | Confirmed by build |
+| `targetSdk` | **36** (Play requirement; independent of `compileSdk`) | target-sdk page | Confirmed by build |
 | `minSdk` | **26** (native `java.time`). The AndroidX default `minSdk` moved to 23 in activity 1.12.0-alpha06, which is below 26, so no conflict is expected. | developer.android.com/jetpack/androidx/releases/activity | Provisional until D2 |
 
 ## V5: toolchain compatibility (pinned in `android/gradle/libs.versions.toml`)
@@ -22,11 +23,13 @@ All checks were made on **2026-10-16** against official sources. Each item is ma
 | AGP | 9.4.0 | Latest stable (September 2026); supports API levels up to 37 | developer.android.com/build/releases/gradle-plugin (updated 2026-10-08) | Confirmed by docs |
 | Gradle (wrapper) | 9.6.0 | AGP 9.4 minimum and default. Gradle 9.8.1 is current, but the AGP default was chosen. | Same page; services.gradle.org/versions/current | Confirmed by docs |
 | JDK | 17 | AGP 9.4 minimum and default | Same page | Confirmed by docs |
-| Kotlin | Built into AGP 9 (`org.jetbrains.kotlin.android` is **not** applied). The Compose compiler plugin `org.jetbrains.kotlin.plugin.compose` is pinned at **2.4.21**, the newest stable release on the Gradle Plugin Portal (2.5.0 is Beta). | AGP 9 bundles KGP ≥ 2.2.10; the Compose plugin version must match the Kotlin version | developer.android.com/build/releases/agp-9-0-0-release-notes, /develop/ui/compose/compiler; plugins.gradle.org metadata | **Provisional.** The docs don't say how a newer Compose plugin version interacts with AGP's bundled KGP. CI is the check. |
+| Kotlin | Built into AGP 9 (`org.jetbrains.kotlin.android` is **not** applied). The Compose compiler plugin `org.jetbrains.kotlin.plugin.compose` is pinned at **2.4.21**, the newest stable release on the Gradle Plugin Portal (2.5.0 is Beta). | AGP 9 bundles KGP ≥ 2.2.10; the Compose plugin version must match the Kotlin version | developer.android.com/build/releases/agp-9-0-0-release-notes, /develop/ui/compose/compiler; plugins.gradle.org metadata | **Confirmed by build.** CI run 38863455375 compiled with AGP 9.4.0 built-in Kotlin plus the Compose plugin 2.4.21. |
 | Compose BOM | 2026.09.00 → ui/foundation 1.12.1 | 1.12.1 is the current stable Compose release | developer.android.com/develop/ui/compose/bom/bom-mapping, /jetpack/androidx/releases/compose | Confirmed by docs |
 | activity-compose | 1.13.0 | Latest stable (2026-03-11) | developer.android.com/jetpack/androidx/releases/activity | Confirmed by docs |
 | JUnit | 4.13.2 | — | Not re-checked; Maven Central metadata was unreachable from this session | Provisional |
 | Screenshot tool (Roborazzi or Paparazzi) | Not pinned yet | Added in M3 | — | Open |
+
+**Build evidence:** https://github.com/Rencevibe/PicFrame/actions/runs/38863455375 passed `lintDebug testDebugUnitTest assembleDebug` from a clean checkout on 2026-10-16.
 
 **Gaps in this check:**
 - Google Maven and Maven Central were unreachable from the authoring environment (network policy), so nothing was resolved or built locally. The CI run is the build evidence.
