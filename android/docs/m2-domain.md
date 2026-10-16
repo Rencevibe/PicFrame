@@ -2,6 +2,8 @@
 
 **Owner:** Android lead.
 
+**Update (M3/M4, 2026-10-16):** the deferred cases now have owners and tests. All 10 photo-cache cases run on real bitmaps in `ImageCacheTest`. Five of the seven config-storage cases are in `SettingsRepositoryTest`. The two directory-fsync cases are replaced by `backupIsWrittenAtomically` plus DataStore's own atomic write, which needs PO acceptance. See `m3-m4.md`.
+
 **Status:** Implemented. All ported tests pass in CI. **Acceptance pending:** the done-when condition is "every listed Python case passing in Kotlin", and some cases are deferred (see [Deferred cases](#deferred-cases-need-acceptance)).
 
 **Code:**

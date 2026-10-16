@@ -27,7 +27,11 @@ All checks were made on **2026-10-16** against official sources. Each item is ma
 | Compose BOM | 2026.09.00 → ui/foundation 1.12.1 | 1.12.1 is the current stable Compose release | developer.android.com/develop/ui/compose/bom/bom-mapping, /jetpack/androidx/releases/compose | Confirmed by docs |
 | activity-compose | 1.13.0 | Latest stable (2026-03-11) | developer.android.com/jetpack/androidx/releases/activity | Confirmed by docs |
 | JUnit | 4.13.2 | — | Not re-checked; Maven Central metadata was unreachable from this session | Provisional |
-| Screenshot tool (Roborazzi or Paparazzi) | Not pinned yet | Added in M3 | — | Open |
+| Screenshot tool | Robolectric **4.17** (native graphics) instead of Roborazzi/Paparazzi (see `m3-m4.md`, deviation 1). Tests run on API **35** because Robolectric's API 36 runtime needs Java 21. | Latest stable; supports up to API 37 | github.com/robolectric/robolectric/releases (checked 2026-10-16) | Confirmed by build (CI run 38873615983) |
+| datastore-preferences | **1.2.1** | Latest stable (2026-03-11) | developer.android.com/jetpack/androidx/releases/datastore | Confirmed by build |
+| exifinterface | **1.4.2** | Latest stable (2025-12-03) | developer.android.com/jetpack/androidx/releases/exifinterface | Confirmed by build |
+| lifecycle (viewmodel-compose, runtime-compose) | **2.11.0** | Latest stable (2026-06-17) | developer.android.com/jetpack/androidx/releases/lifecycle | Confirmed by build |
+| kotlinx-coroutines (android, test) | **1.11.0** | Latest stable; built with Kotlin 2.2.20 | github.com/Kotlin/kotlinx.coroutines/releases | Confirmed by build |
 
 **Build evidence:** https://github.com/Rencevibe/PicFrame/actions/runs/38863455375 passed `lintDebug testDebugUnitTest assembleDebug` from a clean checkout on 2026-10-16.
 
