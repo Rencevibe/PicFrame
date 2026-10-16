@@ -11,6 +11,7 @@ import java.time.LocalTime
  *   checked by the photo source, not here.
  * - `todo_path` is gone: todo.toml is read from the picked folder.
  * - `screen_power` and `brightness_cmd` are Pi-only; brightness is window brightness, always available.
+ * - `alarm_sound` is new (D4): the chosen system alarm tone, or null for the device default.
  */
 data class Config(
     var photoDir: String? = null,
@@ -32,6 +33,7 @@ data class Config(
     var snoozeMin: Int = 9,
     var cacheMb: Int = 500,
     var brightness: Int = 100,
+    var alarmSound: String? = null, // content URI of a system alarm tone; null = device default (D4)
 )
 
 data class ConfigResult(val config: Config, val warnings: List<String>, val critical: Boolean)
@@ -115,6 +117,7 @@ private val FIELDS: Map<String, Field> = linkedMapOf(
     "snooze_min" to Field(intIn(1, 30), { it.snoozeMin }, { c, v -> c.snoozeMin = v as Int }),
     "cache_mb" to Field(intIn(50, 10000), { it.cacheMb }, { c, v -> c.cacheMb = v as Int }),
     "brightness" to Field(intIn(10, 100), { it.brightness }, { c, v -> c.brightness = v as Int }),
+    "alarm_sound" to Field(path, { it.alarmSound }, { c, v -> c.alarmSound = v as String }),
 )
 
 private fun fmtNum(d: Double): String = if (d == Math.floor(d)) d.toLong().toString() else d.toString()

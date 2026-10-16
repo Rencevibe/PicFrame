@@ -18,6 +18,11 @@ const val ALARM_GUARD_S = 1.0
 val INTERVAL_STEPS = listOf(10, 15, 30, 60, 120, 300, 600, 1800)
 val SNOOZE_RANGE = 1..30
 val BRIGHTNESS_RANGE = 10..100
+val WAKE_STEPS = listOf(15, 30, 60, 120, 300)
+val CACHE_STEPS = listOf(100, 250, 500, 1000, 2000)
+
+/** Settings buttons the UI layer fulfils with a system picker or dialog (see [Controller.takeRequest]). */
+val EXTERNAL_REQUESTS = setOf("pick_folder", "edit_location", "pick_sound")
 
 class Controller(
     val cfg: Config,
@@ -41,6 +46,9 @@ class Controller(
     private var alarmReturn = Mode.DASHBOARD
     private var alarmShownAt = 0.0
     private var photoStep = 0
+    var settingsPage = "main" // "main" (Alarm + Display cards) or "frame" (Frame card)
+        private set
+    private var request: String? = null
 
     // --- queries for the UI ---
 
@@ -55,6 +63,15 @@ class Controller(
         }
 
     fun settingsIdleLeft(): Double? = settingsIdlePaused ?: settingsDeadline?.let { it - clock() }
+
+    /** A pending [EXTERNAL_REQUESTS] id for the UI to open, cleared by this call. */
+    fun takeRequest(): String? = request.also { request = null }
+
+    /** The UI calls this when a picker or dialog it opened closes, so Settings doesn't idle-close
+     *  the moment the frame is visible again. */
+    fun touchSettings() {
+        if (mode == Mode.SETTINGS && settingsIdlePaused == null) settingsDeadline = clock() + SETTINGS_IDLE_S
+    }
 
     /** -1 / +1 when Prev / Next was tapped since the last call, else 0. */
     fun takePhotoStep(): Int = photoStep.also { photoStep = 0 }
@@ -179,8 +196,10 @@ class Controller(
                         alarm.test(now)
                         enterAlarm(t)
                     }
+                    "page_frame" -> settingsPage = "frame"
+                    "page_main" -> settingsPage = "main"
                     null -> Unit
-                    else -> applySetting(buttonId)
+                    else -> if (buttonId in EXTERNAL_REQUESTS) request = buttonId else applySetting(buttonId)
                 }
             }
         }
@@ -191,6 +210,7 @@ class Controller(
     private fun openSettings(cameFrom: Mode) {
         settingsReturn = cameFrom
         mode = Mode.SETTINGS
+        settingsPage = "main"
         saveError = null
         settingsDeadline = clock() + SETTINGS_IDLE_S
         settingsIdlePaused = null
@@ -245,10 +265,7 @@ class Controller(
             }
             buttonId == "snooze_minus" || buttonId == "snooze_plus" ->
                 c.snoozeMin = (c.snoozeMin + if (plus) 1 else -1).coerceIn(SNOOZE_RANGE)
-            buttonId == "interval_plus" ->
-                c.intervalS = INTERVAL_STEPS.firstOrNull { it > c.intervalS } ?: c.intervalS
-            buttonId == "interval_minus" ->
-                c.intervalS = INTERVAL_STEPS.lastOrNull { it < c.intervalS } ?: c.intervalS
+            buttonId == "interval_minus" || buttonId == "interval_plus" -> c.intervalS = step(INTERVAL_STEPS, c.intervalS, plus)
             buttonId == "fade_toggle" -> c.fadeMs = if (c.fadeMs > 0) 0 else 1000
             buttonId == "clock_12" || buttonId == "clock_24" -> c.clock24h = buttonId == "clock_24"
             buttonId == "night_toggle" -> c.nightEnabled = !c.nightEnabled
@@ -259,8 +276,21 @@ class Controller(
             }
             buttonId == "brightness_minus" || buttonId == "brightness_plus" ->
                 c.brightness = (c.brightness + if (plus) 10 else -10).coerceIn(BRIGHTNESS_RANGE)
+            buttonId == "units_f" || buttonId == "units_c" -> c.units = if (buttonId == "units_c") "celsius" else "fahrenheit"
+            buttonId == "week_sun" || buttonId == "week_mon" -> c.weekStart = if (buttonId == "week_mon") "monday" else "sunday"
+            buttonId == "corner_minus" || buttonId == "corner_plus" -> {
+                val i = CORNERS.indexOf(c.overlayCorner).coerceAtLeast(0)
+                c.overlayCorner = CORNERS[Math.floorMod(i + if (plus) 1 else -1, CORNERS.size)]
+            }
+            buttonId == "wake_minus" || buttonId == "wake_plus" -> c.wakeS = step(WAKE_STEPS, c.wakeS, plus)
+            buttonId == "cache_minus" || buttonId == "cache_plus" -> c.cacheMb = step(CACHE_STEPS, c.cacheMb, plus)
+            buttonId == "sound_default" -> c.alarmSound = null
             else -> log("settings: ignored $buttonId")
         }
         return c
     }
+
+    /** Next step up or down from [value] (which may be off-step), staying put at the ends. */
+    private fun step(steps: List<Int>, value: Int, up: Boolean): Int =
+        if (up) steps.firstOrNull { it > value } ?: value else steps.lastOrNull { it < value } ?: value
 }

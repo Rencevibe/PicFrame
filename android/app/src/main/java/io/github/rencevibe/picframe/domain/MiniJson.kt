@@ -18,6 +18,51 @@ object MiniJson {
         return v
     }
 
+    /** Serializes maps (string keys), collections, strings, booleans, numbers and null. */
+    fun write(value: Any?): String = StringBuilder().also { write(value, it) }.toString()
+
+    private fun write(v: Any?, out: StringBuilder) {
+        when (v) {
+            null -> out.append("null")
+            is String -> {
+                out.append('"')
+                for (c in v) {
+                    when {
+                        c == '"' -> out.append("\\\"")
+                        c == '\\' -> out.append("\\\\")
+                        c < ' ' -> out.append("\\u").append(c.code.toString(16).padStart(4, '0'))
+                        else -> out.append(c)
+                    }
+                }
+                out.append('"')
+            }
+            is Boolean, is Int, is Long -> out.append(v.toString())
+            is Double -> {
+                require(v.isFinite()) { "JSON: non-finite number" }
+                out.append(v.toString())
+            }
+            is Map<*, *> -> {
+                out.append('{')
+                v.entries.forEachIndexed { i, (k, item) ->
+                    if (i > 0) out.append(',')
+                    write(k as String, out)
+                    out.append(':')
+                    write(item, out)
+                }
+                out.append('}')
+            }
+            is Collection<*> -> {
+                out.append('[')
+                v.forEachIndexed { i, item ->
+                    if (i > 0) out.append(',')
+                    write(item, out)
+                }
+                out.append(']')
+            }
+            else -> throw IllegalArgumentException("JSON: can't write ${v::class.java.simpleName}")
+        }
+    }
+
     private class Parser(private val s: String) {
         var pos = 0
         fun atEnd() = pos >= s.length
