@@ -253,4 +253,10 @@ class WeatherTest {
             }
         }
     }
+
+    @Test fun miniJsonWritesWhatItReads() {
+        val value = mapOf("s" to "a\"b\\c\n", "n" to listOf(1L, -2.5, true, null), "m" to mapOf("k" to "é"))
+        assertEquals(value, MiniJson.parse(MiniJson.write(value)))
+        assertEquals("""{"lat":47.6,"days":[0,6]}""", MiniJson.write(linkedMapOf("lat" to 47.6, "days" to listOf(0, 6))))
+    }
 }

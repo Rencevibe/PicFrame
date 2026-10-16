@@ -344,4 +344,52 @@ class ControllerTest {
         assertEquals(Mode.DASHBOARD, r.c.mode)
         assertEquals(AlarmState.IDLE, r.alarm.state)
     }
+
+    // M3/M4: the Frame settings page (G9) and the alarm tone (D4)
+
+    @Test fun framePageStepsAndCycles() {
+        val r = Rig(day(12))
+        r.tap("open_settings")
+        assertEquals("main", r.c.settingsPage)
+        r.tap("page_frame")
+        assertEquals("frame", r.c.settingsPage)
+        r.tap("units_c")
+        r.tap("week_mon")
+        r.tap("corner_plus") // bottom-left → bottom-right
+        r.tap("wake_plus") // 60 → 120
+        r.tap("cache_minus") // 500 → 250
+        assertEquals("celsius", r.cfg.units)
+        assertEquals("monday", r.cfg.weekStart)
+        assertEquals("bottom-right", r.cfg.overlayCorner)
+        assertEquals(120, r.cfg.wakeS)
+        assertEquals(250, r.cfg.cacheMb)
+        r.cfg.overlayCorner = "top-left"
+        assertEquals("bottom-right", r.c.applySetting("corner_minus").overlayCorner) // wraps
+        r.cfg.wakeS = 300
+        assertEquals(300, r.c.applySetting("wake_plus").wakeS) // stays at the end
+        r.cfg.cacheMb = 777 // off-step stored value
+        assertEquals(1000, r.c.applySetting("cache_plus").cacheMb)
+        r.cfg.alarmSound = "content://x"
+        assertNull(r.c.applySetting("sound_default").alarmSound)
+        r.tap("done")
+        assertEquals(Mode.DASHBOARD, r.c.mode)
+        r.tap("open_settings")
+        assertEquals("main", r.c.settingsPage) // always opens on the main page
+    }
+
+    @Test fun pickerRequestsAreHandedToTheUi() {
+        val r = Rig(day(12))
+        r.tap("open_settings")
+        r.tap("page_frame")
+        for (id in listOf("pick_folder", "edit_location", "pick_sound")) {
+            r.tap(id)
+            assertEquals(id, r.c.takeRequest())
+            assertNull(r.c.takeRequest())
+        }
+        r.advance(100.0)
+        r.c.touchSettings() // picker closed: the idle timer starts again
+        assertEquals(120.0, r.c.settingsIdleLeft()!!, 1e-9)
+        r.tap(null)
+        assertNull(r.c.takeRequest())
+    }
 }

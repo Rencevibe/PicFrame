@@ -43,9 +43,27 @@ jobs:
                       fails.append(f"{case.get('classname')}.{case.get('name')}: " + " | ".join(msg))
           esc = lambda t: t.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
           print(f"::notice title=Unit tests::{total} run, {failed} failed, {skipped} skipped")
+          shots = []
+          for f in glob.glob("**/build/test-results/test*UnitTest/*ScreenshotTest.xml", recursive=True):
+              out = ET.parse(f).getroot().findtext("system-out") or ""
+              shots += [l for l in out.splitlines() if l.startswith("SCREENSHOT")]
+          if shots:
+              print("::notice title=Screenshots vs docs/design::" + esc("\n".join(shots)))
+          import os
+          if os.path.exists("app/build/reports/layout-report.md"):
+              print("::notice title=Layout report::" + esc(open("app/build/reports/layout-report.md").read()))
           if fails:
               print("::error title=Failed tests::" + esc("\n".join(fails[:40])))
           EOF
+      - name: Keep screenshots and the layout report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m3-screenshots
+          path: |
+            android/app/build/screenshots/
+            android/app/build/reports/layout-report.md
+          if-no-files-found: ignore
       - name: Report Gradle failure as annotations
         if: failure()
         run: |

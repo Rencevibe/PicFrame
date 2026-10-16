@@ -14,6 +14,7 @@ import io.github.rencevibe.picframe.domain.BACKDROP_BRIGHTNESS
 import io.github.rencevibe.picframe.domain.BadSources
 import io.github.rencevibe.picframe.domain.CacheEntry
 import io.github.rencevibe.picframe.domain.CacheMode
+import io.github.rencevibe.picframe.domain.MAX_DECODE_PIXELS
 import io.github.rencevibe.picframe.domain.PxRect
 import io.github.rencevibe.picframe.domain.PxSize
 import io.github.rencevibe.picframe.domain.cacheKey
@@ -38,6 +39,7 @@ class ImageCache(
     var limitBytes: Long,
     private val open: (DocEntry) -> InputStream?,
     private val log: (String) -> Unit = {},
+    private val maxPixels: Long = MAX_DECODE_PIXELS,
 ) {
     private val bad = BadSources()
     private var stamp = 0L
@@ -101,13 +103,16 @@ class ImageCache(
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         val orientation = try {
             stream(src).use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
-        } catch (e: IOException) {
+        } catch (e: Exception) { // no or unreadable EXIF: treat as upright
             ExifInterface.ORIENTATION_NORMAL
         }
+        val isJpeg = bounds.outMimeType == "image/jpeg"
         val plan = decodePlan(
-            PxSize(bounds.outWidth, bounds.outHeight), size,
-            isJpeg = bounds.outMimeType == "image/jpeg", exifOrientation = orientation,
+            PxSize(bounds.outWidth, bounds.outHeight), size, isJpeg = isJpeg, exifOrientation = orientation,
+            maxPixels = maxPixels,
         ) ?: return null // too large to decode safely: checked before any pixels are decoded
+        // BitmapFactory returns a partly gray bitmap for a truncated JPEG; Pillow refused it
+        if (isJpeg && !stream(src).use { jpegComplete(it) }) return null
         val decoded = stream(src).use {
             BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply {
                 inSampleSize = plan.sampleSize
@@ -126,6 +131,42 @@ class ImageCache(
     }
 
     companion object {
+        /**
+         * True if a JPEG's main image is followed by its end-of-image marker. Segments before the
+         * scan are skipped by length (so an EXIF thumbnail's markers don't count); trailers after
+         * the end marker (some phones add them) are fine.
+         */
+        fun jpegComplete(input: InputStream): Boolean {
+            val s = input.buffered()
+            fun byte(): Int = s.read()
+            if (byte() != 0xFF || byte() != 0xD8) return false
+            while (true) { // header segments up to start-of-scan
+                var b = byte()
+                if (b != 0xFF) return false
+                while (b == 0xFF) b = byte() // fill bytes
+                when {
+                    b < 0 -> return false
+                    b == 0xDA -> break // start of scan
+                    b == 0x01 || b in 0xD0..0xD7 -> continue // markers without a length
+                }
+                val len = (byte() shl 8) or byte()
+                if (len < 2) return false
+                var skip = (len - 2).toLong()
+                while (skip > 0) {
+                    val n = s.skip(skip)
+                    if (n <= 0) return false
+                    skip -= n
+                }
+            }
+            var prev = 0
+            while (true) { // entropy-coded data and any further scans
+                val b = byte()
+                if (b < 0) return false
+                if (prev == 0xFF && b == 0xD9) return true
+                prev = b
+            }
+        }
+
         private val FILTER = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
 
         /** Rotates/flips per EXIF orientation 2–8; recycles [b] when it makes a new bitmap. */
