@@ -25,7 +25,27 @@ jobs:
       - name: Lint, unit tests, debug APK
         run: |
           set -o pipefail
-          ./gradlew --no-daemon lintDebug testDebugUnitTest assembleDebug 2>&1 | tee gradle.log
+          ./gradlew --no-daemon --continue lintDebug testDebugUnitTest assembleDebug 2>&1 | tee gradle.log
+      - name: Report unit test results as annotations
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          total = failed = skipped = 0
+          fails = []
+          for f in glob.glob("**/build/test-results/test*UnitTest/*.xml", recursive=True):
+              s = ET.parse(f).getroot()
+              total += int(s.get("tests", 0)); skipped += int(s.get("skipped", 0))
+              for case in s.iter("testcase"):
+                  for bad in list(case.findall("failure")) + list(case.findall("error")):
+                      failed += 1
+                      msg = (bad.get("message") or bad.text or "").strip().splitlines()[:6]
+                      fails.append(f"{case.get('classname')}.{case.get('name')}: " + " | ".join(msg))
+          esc = lambda t: t.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+          print(f"::notice title=Unit tests::{total} run, {failed} failed, {skipped} skipped")
+          if fails:
+              print("::error title=Failed tests::" + esc("\n".join(fails[:40])))
+          EOF
       - name: Report Gradle failure as annotations
         if: failure()
         run: |
