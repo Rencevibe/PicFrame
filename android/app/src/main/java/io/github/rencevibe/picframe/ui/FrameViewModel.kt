@@ -346,7 +346,10 @@ class FrameViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    override fun onCleared() {
+    override fun onCleared() = close()
+
+    /** Stops the sound and closes settings storage (also used by tests, which can't clear a ViewModel). */
+    internal fun close() {
         sound.stop()
         ioScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
     }

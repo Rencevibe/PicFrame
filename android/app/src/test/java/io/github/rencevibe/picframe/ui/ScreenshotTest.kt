@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
@@ -145,6 +146,21 @@ class ScreenshotTest {
     @Test fun settingsSaveError() = check("settings-save-error", render {
         settings(SettingsVm(Config(), "main", "SD card is read-only", null, "Pictures/Frame", "Device default"))
     })
+
+    /** The tolerance must reject a wrong screen, or the comparisons above prove nothing. */
+    @Test fun metricRejectsTheWrongScreen() {
+        val settings = render { settings(SettingsVm(Config(), "main", null, null, "Pictures/Frame", "Device default")) }
+        val d = compare("dashboard", settings).also { results.remove("dashboard") }
+        assertTrue("settings vs dashboard mockup passed: $d", d.mean > MAX_MEAN || d.badShare > MAX_BAD_SHARE)
+        val shifted = render {
+            scope.translate(24f, 0f) { Ink(this, measurer).settings(SettingsVm(Config(), "main", null, null, "Pictures/Frame", "Device default")) }
+        }
+        val s = compare("settings", shifted).also { results.remove("settings") }
+        assertTrue("settings shifted 24 px passed: $s", s.badShare > MAX_BAD_SHARE || s.mean > MAX_MEAN)
+        // Leave the saved renders as the real ones
+        check("dashboard", render { dashboard(dashboardVm(banner = Banner("Missed alarm 6:30 AM", "missed", 0))) })
+        check("settings", render { settings(SettingsVm(Config(), "main", null, null, "Pictures/Frame", "Device default")) })
+    }
 
     /** No mockup exists for these (G9 Frame page, first-run setup): rendered for the designer's review only. */
     @Test fun screensWithoutMockups() {
