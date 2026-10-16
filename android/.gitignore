@@ -1,0 +1,11 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+# Signing material never goes in the repository (plan §6)
+*.jks
+*.keystore
+keystore.properties
