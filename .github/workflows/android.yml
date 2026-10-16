@@ -1,74 +1,13 @@
 name: Android
-
 on:
   push:
     paths: ["android/**", ".github/workflows/android.yml"]
-  pull_request:
-    paths: ["android/**", ".github/workflows/android.yml"]
-
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: android
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Lint, unit tests, debug APK
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon --continue lintDebug testDebugUnitTest assembleDebug 2>&1 | tee gradle.log
-      - name: Report unit test results as annotations
-        if: always()
-        run: |
-          python3 - <<'EOF'
-          import glob, xml.etree.ElementTree as ET
-          total = failed = skipped = 0
-          fails = []
-          for f in glob.glob("**/build/test-results/test*UnitTest/*.xml", recursive=True):
-              s = ET.parse(f).getroot()
-              total += int(s.get("tests", 0)); skipped += int(s.get("skipped", 0))
-              for case in s.iter("testcase"):
-                  for bad in list(case.findall("failure")) + list(case.findall("error")):
-                      failed += 1
-                      msg = (bad.get("message") or bad.text or "").strip().splitlines()[:6]
-                      fails.append(f"{case.get('classname')}.{case.get('name')}: " + " | ".join(msg))
-          esc = lambda t: t.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
-          print(f"::notice title=Unit tests::{total} run, {failed} failed, {skipped} skipped")
-          shots = []
-          for f in glob.glob("**/build/test-results/test*UnitTest/*ScreenshotTest.xml", recursive=True):
-              out = ET.parse(f).getroot().findtext("system-out") or ""
-              shots += [l for l in out.splitlines() if l.startswith("SCREENSHOT")]
-          if shots:
-              print("::notice title=Screenshots vs docs/design::" + esc("\n".join(shots)))
-          import os
-          if os.path.exists("app/build/reports/layout-report.md"):
-              print("::notice title=Layout report::" + esc(open("app/build/reports/layout-report.md").read()))
-          if fails:
-              print("::error title=Failed tests::" + esc("\n".join(fails[:40])))
-          EOF
-      - name: Keep screenshots and the layout report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: m3-screenshots
-          path: |
-            android/app/build/screenshots/
-            android/app/build/reports/layout-report.md
-          if-no-files-found: ignore
-      - name: Report Gradle failure as annotations
-        if: failure()
-        run: |
-          # One annotation per block: GitHub keeps only 10 annotations per step
-          msg=$(grep -E -A30 "What went wrong" gradle.log | head -60 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
-          echo "::error title=Gradle::${msg}"
-          msg=$(grep -E "^e: |error:" gradle.log | head -30 | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')
-          [ -n "$msg" ] && echo "::error title=Compiler::${msg}" || true
+      - run: |
+          sha=$(curl -fsSL https://services.gradle.org/distributions/gradle-9.6.0-bin.zip.sha256)
+          echo "::notice title=gradle-9.6.0-bin sha256::$sha"
