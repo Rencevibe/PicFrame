@@ -41,6 +41,7 @@ class Slideshow(
     private var switchedAt = clock()
     private var preload: Deferred<Slide?>? = null
     private var jumping = false
+    private var generation = 0 // bumped by reset(); results of older jumps are dropped
     private val history = ArrayDeque<DocEntry>()
 
     val fading: Boolean get() = fadeFrom != null
@@ -122,6 +123,7 @@ class Slideshow(
             jumping = false
             return
         }
+        val gen = generation
         scope.launch {
             val slide = if (back != null) {
                 scope.async(io) { prepare(back) }.await()
@@ -129,6 +131,7 @@ class Slideshow(
                 // A queued preload keeps the shuffle order instead of skipping past it
                 pending?.await() ?: scope.async(io) { prepareNext() }.await()
             }
+            if (gen != generation) return@launch // reset() ran meanwhile; it already cleared jumping
             if (slide != null) {
                 if (back != null) history.removeLast()
                 show(slide, 0.0, record = back == null)
@@ -148,6 +151,8 @@ class Slideshow(
 
     /** Forget the current photo (e.g. a new folder was picked). */
     fun reset() {
+        generation++
+        jumping = false
         preload?.cancel()
         preload = null
         current = null

@@ -266,6 +266,14 @@ class FrameViewModel(app: Application) : AndroidViewModel(app) {
         frame++
     }
 
+    /** The gesture was cancelled: clear the pressed state, fire nothing. */
+    fun onCancel() {
+        if (down == null && pressed == null) return
+        down = null
+        pressed = null
+        frame++
+    }
+
     /** Accessibility activation of a target (no finger-down time; the alarm guard still applies). */
     fun a11yTap(action: String) = tap(action, clock())
 
@@ -352,6 +360,12 @@ class FrameViewModel(app: Application) : AndroidViewModel(app) {
     internal fun close() {
         sound.stop()
         ioScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+    }
+
+    /** [close], then wait until settings storage has released its file (tests open a new instance). */
+    internal suspend fun closeAndJoin() {
+        close()
+        ioScope.coroutineContext[kotlinx.coroutines.Job]?.join()
     }
 
     companion object {

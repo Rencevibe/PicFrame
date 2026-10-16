@@ -2,9 +2,22 @@
 
 **Owner:** Android lead.
 
-**Update (M3/M4, 2026-10-16):** the deferred cases now have owners and tests. All 10 photo-cache cases run on real bitmaps in `ImageCacheTest`. Five of the seven config-storage cases are in `SettingsRepositoryTest`. The two directory-fsync cases are replaced by `backupIsWrittenAtomically` plus DataStore's own atomic write, which needs PO acceptance. See `m3-m4.md`.
+**Review (2026-10-16): M2 is NOT accepted.** Plan §7's done-when is "every listed Python case passing in Kotlin". Of the 91 Python cases in scope, **87 have an equivalent Kotlin test passing in CI**. The other four don't, and they are not counted as equivalent:
 
-**Status:** Implemented. All ported tests pass in CI. **Acceptance pending:** the done-when condition is "every listed Python case passing in Kotlin", and some cases are deferred (see [Deferred cases](#deferred-cases-need-acceptance)).
+| Python case | Why it isn't equivalent | Kotlin today |
+|---|---|---|
+| `test_config.py::test_missing_file_gives_defaults_and_warning` | Android shows no warning on first run (no settings yet), and doesn't flag a missing photo folder as critical. The folder is checked when the photo source reads it. | `SettingsRepositoryTest.missingFileGivesDefaults` (defaults only) |
+| `test_config.py::test_nul_in_path_is_rejected` | Only the `photo_dir` half is ported; `todo_path` no longer exists (D3). | `ConfigTest.nulInPathIsRejected` |
+| `test_config.py::test_directory_is_fsynced_after_replace` | There's no directory fsync on Android. The main file uses DataStore's own atomic write; the backup uses file fsync plus rename. | Substituted by `SettingsRepositoryTest.backupIsWrittenAtomically` |
+| `test_config.py::test_directory_sync_failure_is_logged_not_fatal` | Same reason. | No equivalent |
+
+**To close M2, the PO must either:**
+- accept these four as adapted or substituted, recorded in `decisions.md`; or
+- direct an equivalent for each (e.g. a first-run warning and a folder-existence check).
+
+Everything else in the earlier "deferred" list now has a passing equivalent: all 10 photo-cache cases in `ImageCacheTest`, and 5 storage cases in `SettingsRepositoryTest`.
+
+**Status (original M2 record, superseded by the review above):** Implemented. All ported tests pass in CI. **Acceptance pending:** the done-when condition is "every listed Python case passing in Kotlin", and some cases are deferred (see [Deferred cases](#deferred-cases-need-acceptance)).
 
 **Code:**
 - `android/app/src/main/java/io/github/rencevibe/picframe/domain/`: pure Kotlin, no `android.*` imports.

@@ -31,7 +31,7 @@ class FrameViewModelTest {
 
     private val made = mutableListOf<FrameViewModel>()
 
-    @org.junit.After fun closeAll() = made.forEach { it.close() }
+    @org.junit.After fun closeAll() = kotlinx.coroutines.runBlocking { made.forEach { it.closeAndJoin() } }
 
     private fun ready(vm: FrameViewModel): FrameViewModel {
         made += vm
@@ -68,6 +68,23 @@ class FrameViewModelTest {
         assertEquals("pick_folder", vm.takeRequest())
         tapOn(vm, "setup_skip")
         assertFalse(vm.showSetup)
+        assertEquals(Mode.DASHBOARD, vm.controller.mode)
+        // "Remembered": a new instance (app restart) doesn't show setup again
+        repeat(100) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(10) } // let the IO write finish
+        kotlinx.coroutines.runBlocking { vm.closeAndJoin() }
+        made.remove(vm)
+        assertFalse(ready(FrameViewModel(app)).showSetup)
+    }
+
+    @Test fun cancelledTouchDoesNotFire() { // regression: a cancelled gesture used to count as a release
+        val vm = ready(FrameViewModel(app))
+        if (vm.showSetup) tapOn(vm, "setup_skip")
+        val toPhoto = frame(vm).first { it.action == "to_photo" }
+        vm.onDown(toPhoto.rect.center)
+        assertEquals("to_photo", vm.pressed)
+        vm.onCancel()
+        assertNull(vm.pressed)
+        vm.onUp(toPhoto.rect.center) // a stray release after the cancel does nothing
         assertEquals(Mode.DASHBOARD, vm.controller.mode)
     }
 

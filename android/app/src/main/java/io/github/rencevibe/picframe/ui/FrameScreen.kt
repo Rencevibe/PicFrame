@@ -72,14 +72,22 @@ fun FrameScreen(vm: FrameViewModel) {
                 awaitEachGesture {
                     val first = awaitFirstDown(requireUnconsumed = false)
                     vm.onDown(toDesign(first.position))
-                    while (true) {
-                        val change = awaitPointerEvent().changes.firstOrNull { it.id == first.id } ?: break
-                        if (change.pressed) {
-                            vm.onMove(toDesign(change.position))
-                        } else {
-                            vm.onUp(toDesign(change.position))
-                            break
+                    var ended = false
+                    try {
+                        while (true) {
+                            val change = awaitPointerEvent().changes.firstOrNull { it.id == first.id } ?: break
+                            if (change.pressed) {
+                                vm.onMove(toDesign(change.position))
+                            } else {
+                                // Compose reports a cancelled gesture (e.g. a system edge swipe) as an
+                                // already-consumed release: that is not a tap
+                                if (change.isConsumed) vm.onCancel() else vm.onUp(toDesign(change.position))
+                                ended = true
+                                break
+                            }
                         }
+                    } finally {
+                        if (!ended) vm.onCancel() // pointer vanished or the gesture coroutine was cancelled
                     }
                 }
             },

@@ -51,15 +51,17 @@ class SettingsRepository internal constructor(
 ) {
     /** Loads and validates. Never throws; falls back to the backup, then to defaults. */
     suspend fun load(): LoadedSettings {
+        var readFailed = false
         val prefs = try {
             store.data.first()
-        } catch (e: IOException) {
+        } catch (e: IOException) { // exists but can't be read (permissions, I/O error): not "no settings"
+            readFailed = true
             emptyPreferences()
         }
         val warnings = mutableListOf<String>()
         var source = recovered.getAndSet(null) // "last saved" | "defaults" when the file was corrupt
         var raw = parse(prefs[CONFIG])
-        if (prefs[CONFIG] != null && raw == null) { // stored text unreadable: same recovery as a corrupt file
+        if (readFailed || (prefs[CONFIG] != null && raw == null)) { // same recovery as a corrupt file
             raw = parse(readBackup(backup))
             source = if (raw != null) "last saved" else "defaults"
         }
@@ -75,7 +77,8 @@ class SettingsRepository internal constructor(
             result.critical -> "Some settings were invalid — using defaults for them"
             else -> null
         }
-        return LoadedSettings(result.config, warnings, banner, prefs[SETUP_DONE] ?: false)
+        // A read failure says nothing about first run: don't send the user back to setup
+        return LoadedSettings(result.config, warnings, banner, readFailed || prefs[SETUP_DONE] == true)
     }
 
     /** Saves [cfg]. Returns null on success, else a short reason; on failure the stored settings

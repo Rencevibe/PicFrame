@@ -153,6 +153,21 @@ class ImageCacheTest {
         assertNotNull(cache.get(tree.entry(bigJpg), dash, CacheMode.FILL))
     }
 
+    @Test fun outOfMemoryIsRetriedNotMarkedBad() { // regression: OOM used to skip the photo for good
+        val photos = tmp.newFolder("photos")
+        val tree = FileTree(photos)
+        var failNext = true
+        val logged = mutableListOf<String>()
+        val cache = ImageCache(File(tmp.root, "cache"), 500L * 1024 * 1024, {
+            if (failNext) { failNext = false; throw OutOfMemoryError("test") }
+            tree.open(it.id)
+        }, { logged += it })
+        val src = makeImage(File(photos, "a.jpg"))
+        assertNull(cache.get(tree.entry(src), dash, CacheMode.FILL))
+        assertNotNull(cache.get(tree.entry(src), dash, CacheMode.FILL)) // memory freed: decodes now
+        assertTrue(logged.none { "unreadable" in it })
+    }
+
     @Test fun jpegCompletenessCheck() { // Kotlin-only
         val (photos, _, _) = setup()
         val good = makeImage(File(photos, "g.jpg"), 64, 48, exifOrientation = 6) // EXIF segment before the scan

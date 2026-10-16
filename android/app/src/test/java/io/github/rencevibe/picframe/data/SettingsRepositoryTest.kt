@@ -151,6 +151,21 @@ class SettingsRepositoryTest {
         assertTrue(l.warnings.any { "alarm_time" in it })
     }
 
+    @Test fun unreadableFileUsesBackupWithBanner() = runBlocking { // regression: was silent defaults
+        val repo = open()
+        assertNull(repo.save(sample()))
+        assertNull(repo.save(sample().copy(snoozeMin = 12))) // backup holds snoozeMin = 5
+        try {
+            file.setReadable(false) // exists but can't be read: not corruption, not "no settings"
+            val l = open().load()
+            assertEquals(5, l.config.snoozeMin)
+            assertEquals("Settings were unreadable — using last saved settings", l.banner)
+            assertTrue(l.setupDone) // a read failure must not send the user back to first-run setup
+        } finally {
+            file.setReadable(true)
+        }
+    }
+
     @Test fun setupDoneIsRemembered() = runBlocking {
         val repo = open()
         repo.setSetupDone()

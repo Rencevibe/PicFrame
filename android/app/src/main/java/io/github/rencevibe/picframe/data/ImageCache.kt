@@ -65,8 +65,9 @@ class ImageCache(
             return null // gone since the last scan: not the photo's fault
         } catch (e: Exception) {
             null
-        } catch (e: OutOfMemoryError) {
-            null
+        } catch (e: OutOfMemoryError) { // memory pressure, not the photo's fault: try again later
+            log("photos: out of memory decoding ${src.relPath}")
+            return null
         }
         if (bitmap == null) {
             if (bad.markBad(src.id, src.lastModifiedMs, src.size)) log("photos: skipping unreadable ${src.relPath}")
