@@ -1,0 +1,13 @@
+{
+  "latitude": 47.6,
+  "longitude": -122.33,
+  "generationtime_ms": 0.0469,
+  "utc_offset_seconds": -25200,
+  "timezone": "America/Los_Angeles",
+  "timezone_abbreviation": "PDT",
+  "elevation": 56.0,
+  "current_units": {"time": "iso8601", "interval": "seconds", "temperature_2m": "°F", "weather_code": "wmo code"},
+  "current": {"time": "2026-10-14T12:30", "interval": 900, "temperature_2m": 63.7, "weather_code": 2},
+  "daily_units": {"time": "iso8601", "temperature_2m_max": "°F", "temperature_2m_min": "°F"},
+  "daily": {"time": ["2026-10-14"], "temperature_2m_max": [71.6], "temperature_2m_min": [54.9]}
+}
