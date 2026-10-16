@@ -20,6 +20,9 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
 
+/** Persisted folder grants in [held] that nothing in [inUse] points at; safe to release. */
+fun unusedGrants(held: List<String>, inUse: Set<String>): List<String> = held.filterNot { it in inUse }
+
 /** What [SettingsRepository.load] found. */
 data class LoadedSettings(val config: Config, val warnings: List<String>, val banner: String?, val setupDone: Boolean)
 
@@ -92,6 +95,15 @@ class SettingsRepository internal constructor(
         if (written == null || validateConfig(written).config != cfg) "written settings did not match" else null
     } catch (e: IOException) {
         e.message ?: e.toString()
+    }
+
+    /** Folder URIs that the stored settings or the backup name, i.e. every folder a later load can
+     *  return to (an unreadable store falls back to the backup). Null if the store can't be read. */
+    suspend fun foldersInUse(): Set<String>? = try {
+        listOf(store.data.first()[CONFIG], readBackup(backup))
+            .mapNotNull { parse(it)?.get("photo_dir") as? String }.toSet()
+    } catch (e: IOException) {
+        null
     }
 
     suspend fun setSetupDone() {

@@ -166,6 +166,27 @@ class SettingsRepositoryTest {
         }
     }
 
+    @Test fun oldFolderGrantIsKeptUntilNoSavedCopyNamesIt() = runBlocking { // regression: SAF grant leak
+        val a = "content://tree/old"
+        val b = "content://tree/new"
+        val held = listOf(a, b, "content://tree/abandoned")
+        val repo = open()
+        assertNull(repo.save(sample().copy(photoDir = a)))
+        assertNull(repo.save(sample().copy(photoDir = b)))
+        // A is now only in the backup, but a corrupt store would load it: releasing A here would
+        // leave the recovered settings pointing at a folder without access
+        assertEquals(setOf(a, b), repo.foldersInUse())
+        assertEquals(listOf("content://tree/abandoned"), unusedGrants(held, repo.foldersInUse()!!))
+        file.writeText("x = [")
+        assertEquals(a, open().load().config.photoDir)
+
+        val again = open()
+        assertNull(again.save(sample().copy(photoDir = b)))
+        assertNull(again.save(sample().copy(photoDir = b, snoozeMin = 12))) // backup now names B too
+        assertEquals(setOf(b), again.foldersInUse())
+        assertEquals(listOf(a, "content://tree/abandoned"), unusedGrants(held, again.foldersInUse()!!))
+    }
+
     @Test fun setupDoneIsRemembered() = runBlocking {
         val repo = open()
         repo.setSetupDone()

@@ -36,6 +36,10 @@ A user force-stopping the app cancels its alarms by Android design. That case is
 
 Use a fresh install on each device, with a screen lock (PIN) set.
 
+**Devices.** "Android 14+" means API 34 or later. "Older" means API 26–33 (Android 8.0–13); prefer Android 12 or 13, which have the exact-alarm grant but not Android 14's full-screen-intent restriction. Leave the vendor's battery settings at their defaults. Either device can also serve as the M3 phone or tablet (`m3-m4.md`).
+
+**Record for each device** in the Results table and its evidence files: model (`adb shell getprop ro.product.model`), Android version and API level (`ro.build.version.release`, `ro.build.version.sdk`), security patch (`ro.build.version.security_patch`), the commit the spike APK was built from, the tester and the date.
+
 ```sh
 cd android
 ./gradlew :spike-alarm:assembleDebug
@@ -78,6 +82,8 @@ Fill in one row per device and case. A case passes when the sound delta is ≤ 5
 | | B | | | | | | | |
 | | C | | | | | | | |
 | | D | | | | | | | |
+
+**Per device:** Android 14+: model ___ · Android/API ___ · patch ___ · commit ___ · tester/date ___ ; Older: model ___ · Android/API ___ · patch ___ · commit ___ · tester/date ___
 
 **Default grants on a fresh sideloaded install** (step 1.1): Android 14+: ___ ; Older: ___
 
