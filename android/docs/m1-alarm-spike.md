@@ -40,10 +40,11 @@ Use a fresh install on each device, with a screen lock (PIN) set.
 
 **Record for each device** in the Results table and its evidence files: model (`adb shell getprop ro.product.model`), Android version and API level (`ro.build.version.release`, `ro.build.version.sdk`), security patch (`ro.build.version.security_patch`), the commit the spike APK was built from, the tester and the date.
 
+Get the APK from the green CI run of the commit under test (artifact `debug-apks`), or build it from that commit with `./gradlew :spike-alarm:assembleDebug`:
+
 ```sh
-cd android
-./gradlew :spike-alarm:assembleDebug
-adb install -r spike-alarm/build/outputs/apk/debug/spike-alarm-debug.apk
+gh run download <run-id> -R Rencevibe/PicFrame -n debug-apks -D apks
+adb install -r apks/spike-alarm/build/outputs/apk/debug/spike-alarm-debug.apk
 adb logcat -c
 ```
 

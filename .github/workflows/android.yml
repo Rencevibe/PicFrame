@@ -64,6 +64,14 @@ jobs:
             android/app/build/screenshots/
             android/app/build/reports/layout-report.md
           if-no-files-found: ignore
+      - name: Keep the debug APKs for device testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apks
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/spike-alarm/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
       - name: Report Gradle failure as annotations
         if: failure()
         run: |
