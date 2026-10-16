@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PicFrame"
 include(":app")
+include(":spike-alarm") // M1 throwaway; remove after the Go/No-go is recorded
