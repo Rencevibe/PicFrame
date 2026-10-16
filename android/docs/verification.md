@@ -37,7 +37,7 @@ All checks were made on **2026-10-16** against official sources. Each item is ma
 
 **Gaps in this check:**
 - Google Maven and Maven Central were unreachable from the authoring environment (network policy), so nothing was resolved or built locally. The CI run is the build evidence.
-- The Gradle distribution SHA-256 couldn't be fetched (its redirect host was blocked), so `distributionSha256Sum` isn't set yet. **TODO for M0 close-out:** add it from services.gradle.org.
+- `distributionSha256Sum` is set (2026-10-16) to the official `gradle-9.6.0-bin.zip.sha256` from services.gradle.org. That host is blocked here, so a CI runner fetched it (run 38910007627); CI then builds with the wrapper verifying the download against it.
 
 ## V2: exact alarms (checked ahead of M1)
 
