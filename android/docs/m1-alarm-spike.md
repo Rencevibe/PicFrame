@@ -72,6 +72,8 @@ adb logcat -c
 
 Fill in one row per device and case. A case passes when the sound delta is ≤ 5000 ms, the alarm is audible with media at 0, the alarm screen appears over the lock screen (or the heads-up fallback is documented), and the permission state shows the needed grants.
 
+If no `FIRED` or `SOUND PLAYING` line appears for a case, write `none` in that column; the case fails. In **Over lock screen**, write `yes`, `no`, or `heads-up` with a note on what appeared (the condition-3 fallback). Per condition 3, a working heads-up notification passes only when it is documented here.
+
 | Device (model / Android version) | Case | FIRED delta_ms | SOUND delta_ms | Audible, media 0 | Over lock screen | canExact / canFullScreen | Pass? | Evidence file |
 |---|---|---|---|---|---|---|---|---|
 | Android 14+: | A | | | | | | | |

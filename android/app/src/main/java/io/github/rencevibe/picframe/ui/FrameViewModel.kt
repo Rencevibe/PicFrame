@@ -13,13 +13,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.rencevibe.picframe.data.DocumentTree
+import io.github.rencevibe.picframe.data.FolderGrants
 import io.github.rencevibe.picframe.data.ImageCache
 import io.github.rencevibe.picframe.data.PhotoSource
 import io.github.rencevibe.picframe.data.SafTree
 import io.github.rencevibe.picframe.data.SettingsRepository
 import io.github.rencevibe.picframe.data.TodoSource
 import io.github.rencevibe.picframe.data.httpGet
-import io.github.rencevibe.picframe.data.unusedGrants
 import io.github.rencevibe.picframe.domain.Alarm
 import io.github.rencevibe.picframe.domain.AlarmState
 import io.github.rencevibe.picframe.domain.Config
@@ -58,6 +58,18 @@ class FrameViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = SettingsRepository.create(
         File(ctx.filesDir, "datastore/settings.preferences_pb"), File(ctx.filesDir, "settings-backup.json"), ioScope,
     )
+
+    /** Pruned inside [saveBlocking], which blocks the UI thread, so no new grant is taken meanwhile. */
+    private val grants = object : FolderGrants {
+        override fun held() = ctx.contentResolver.persistedUriPermissions.map { it.uri.toString() }
+        override fun release(uri: String) {
+            try {
+                ctx.contentResolver.releasePersistableUriPermission(Uri.parse(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: SecurityException) {
+                warn("folder: release failed: $e")
+            }
+        }
+    }
 
     var ready by mutableStateOf(false)
         private set
@@ -125,25 +137,7 @@ class FrameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Controller.save runs on the UI thread (Done / idle close); DataStore writes are small. */
-    private fun saveBlocking(c: Config): String? = runBlocking(Dispatchers.IO) {
-        repo.save(c).also { if (it == null) releaseUnusedGrants(c.photoDir) }
-    }
-
-    /** Drops folder grants no saved copy can return to. Not before: the backup still names the
-     *  previous folder until the next save, and an unreadable store is recovered from it. Runs
-     *  inside [saveBlocking], so the UI thread can't take a new grant meanwhile. */
-    private suspend fun releaseUnusedGrants(current: String?) {
-        val inUse = repo.foldersInUse() ?: return
-        val cr = ctx.contentResolver
-        val held = cr.persistedUriPermissions.map { it.uri.toString() }
-        for (u in unusedGrants(held, inUse + listOfNotNull(current))) {
-            try {
-                cr.releasePersistableUriPermission(Uri.parse(u), Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (e: SecurityException) {
-                warn("folder: release failed: $e")
-            }
-        }
-    }
+    private fun saveBlocking(c: Config): String? = runBlocking(Dispatchers.IO) { repo.saveAndPruneGrants(c, grants) }
 
     private fun openTree() {
         tree = cfg.photoDir?.let { SafTree(ctx, Uri.parse(it)) }

@@ -20,6 +20,12 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
 
+/** The app's persisted folder grants (the ContentResolver in the app; a fake in tests). */
+interface FolderGrants {
+    fun held(): List<String>
+    fun release(uri: String)
+}
+
 /** Persisted folder grants in [held] that nothing in [inUse] points at; safe to release. */
 fun unusedGrants(held: List<String>, inUse: Set<String>): List<String> = held.filterNot { it in inUse }
 
@@ -98,12 +104,24 @@ class SettingsRepository internal constructor(
     }
 
     /** Folder URIs that the stored settings or the backup name, i.e. every folder a later load can
-     *  return to (an unreadable store falls back to the backup). Null if the store can't be read. */
+     *  return to (an unreadable store falls back to the backup). Null if either can't be read now:
+     *  an unreadable backup may still be read by a later load. */
     suspend fun foldersInUse(): Set<String>? = try {
-        listOf(store.data.first()[CONFIG], readBackup(backup))
-            .mapNotNull { parse(it)?.get("photo_dir") as? String }.toSet()
+        val stored = store.data.first()[CONFIG]
+        val saved = backup.takeIf { it.exists() }?.readText(Charsets.UTF_8)
+        listOf(stored, saved).mapNotNull { parse(it)?.get("photo_dir") as? String }.toSet()
     } catch (e: IOException) {
         null
+    }
+
+    /** [save], then releases the folder grants no saved copy can return to (nor [Config.photoDir]).
+     *  Nothing is released when the save fails or the saved copies can't be read. */
+    suspend fun saveAndPruneGrants(cfg: Config, grants: FolderGrants): String? {
+        val err = save(cfg)
+        if (err != null) return err
+        val inUse = foldersInUse() ?: return null
+        unusedGrants(grants.held(), inUse + listOfNotNull(cfg.photoDir)).forEach(grants::release)
+        return null
     }
 
     suspend fun setSetupDone() {

@@ -166,25 +166,65 @@ class SettingsRepositoryTest {
         }
     }
 
+    private class FakeGrants(vararg uris: String) : FolderGrants {
+        val held = uris.toMutableList()
+        val released = mutableListOf<String>()
+        override fun held() = held.toList()
+        override fun release(uri: String) {
+            released += uri
+            held -= uri
+        }
+    }
+
+    private val old = "content://tree/old"
+    private val new = "content://tree/new"
+    private val abandoned = "content://tree/abandoned"
+
     @Test fun oldFolderGrantIsKeptUntilNoSavedCopyNamesIt() = runBlocking { // regression: SAF grant leak
-        val a = "content://tree/old"
-        val b = "content://tree/new"
-        val held = listOf(a, b, "content://tree/abandoned")
+        val grants = FakeGrants(old, new, abandoned)
         val repo = open()
-        assertNull(repo.save(sample().copy(photoDir = a)))
-        assertNull(repo.save(sample().copy(photoDir = b)))
-        // A is now only in the backup, but a corrupt store would load it: releasing A here would
-        // leave the recovered settings pointing at a folder without access
-        assertEquals(setOf(a, b), repo.foldersInUse())
-        assertEquals(listOf("content://tree/abandoned"), unusedGrants(held, repo.foldersInUse()!!))
+        assertNull(repo.saveAndPruneGrants(sample().copy(photoDir = old), grants))
+        assertNull(repo.saveAndPruneGrants(sample().copy(photoDir = new), grants))
+        // The old folder is now only in the backup, but a corrupt store loads the backup:
+        // releasing it here would leave the recovered settings without folder access
+        assertEquals(listOf(abandoned), grants.released)
         file.writeText("x = [")
-        assertEquals(a, open().load().config.photoDir)
+        assertEquals(old, open().load().config.photoDir)
+        assertTrue(old in grants.held)
 
         val again = open()
-        assertNull(again.save(sample().copy(photoDir = b)))
-        assertNull(again.save(sample().copy(photoDir = b, snoozeMin = 12))) // backup now names B too
-        assertEquals(setOf(b), again.foldersInUse())
-        assertEquals(listOf(a, "content://tree/abandoned"), unusedGrants(held, again.foldersInUse()!!))
+        assertNull(again.saveAndPruneGrants(sample().copy(photoDir = new), grants)) // backup: old (recovered)
+        assertEquals(listOf(abandoned), grants.released)
+        assertNull(again.saveAndPruneGrants(sample().copy(photoDir = new, snoozeMin = 12), grants))
+        assertEquals(listOf(abandoned, old), grants.released)
+        assertEquals(listOf(new), grants.held)
+    }
+
+    @Test fun failedSaveReleasesNoGrant() = runBlocking {
+        val grants = FakeGrants(old)
+        val repo = open { _, _ -> throw IOException("No space left on device") }
+        assertNull(repo.saveAndPruneGrants(sample().copy(photoDir = old), grants)) // no backup yet
+        grants.held += new // picked in Settings, then the save fails
+        assertNotNull(repo.saveAndPruneGrants(sample().copy(photoDir = new), grants))
+        assertTrue(grants.released.isEmpty())
+        assertEquals(old, open().load().config.photoDir)
+    }
+
+    @Test fun unreadableBackupReleasesNoGrant() = runBlocking { // a later load may still read it
+        val first = open()
+        assertNull(first.save(sample().copy(photoDir = old)))
+        assertNull(first.save(sample().copy(photoDir = new))) // backup names old
+        val grants = FakeGrants(old, new)
+        val repo = open { _, _ -> } // this save leaves the backup file as it is
+        try {
+            backup.setReadable(false)
+            assertNull(repo.foldersInUse())
+            assertNull(repo.saveAndPruneGrants(sample().copy(photoDir = new, snoozeMin = 12), grants))
+            assertTrue(grants.released.isEmpty())
+        } finally {
+            backup.setReadable(true)
+        }
+        assertEquals(setOf(old, new), repo.foldersInUse())
     }
 
     @Test fun setupDoneIsRemembered() = runBlocking {
