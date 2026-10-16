@@ -23,4 +23,8 @@ Baseline: `claude/new-session-sonjj7` @ `256419c`. Work branches: `android/m0-se
 
 ## Latest CI evidence
 
-https://github.com/Rencevibe/PicFrame/actions/runs/38905505215 (commit `7ca32df`, 2026-10-16): `lintDebug testDebugUnitTest assembleDebug` passed from a clean checkout; 155 tests run, 0 failed, 0 skipped. No local build is possible here: Google Maven and Maven Central are blocked, and there is no Android SDK.
+https://github.com/Rencevibe/PicFrame/actions/runs/38907162264 (commit `72b748c`, 2026-10-16): `lintDebug testDebugUnitTest assembleDebug` passed from a clean checkout; 156 tests run (155 before, plus the folder-grant regression test), 0 failed, 0 skipped. CI shows build and test health only; it proves nothing about device behaviour, so it doesn't accept M1, M3 or M4. No local build is possible here: Google Maven and Maven Central are blocked, and there is no Android SDK.
+
+## Known issues
+
+- **Folder grant of the previous folder** is released only on the second successful save after a switch, not the first (the backup still names it; see `m3-m4.md`, M4 table). One extra grant is held in between; Android caps persisted grants per app, which one extra stays far below.
